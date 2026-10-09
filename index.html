@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
 <meta name="theme-color" content="#10182F" />
 <title>Café Zodíaco</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%2310182F'/%3E%3Ccircle cx='256' cy='256' r='200' fill='none' stroke='%23D6AE55' stroke-width='8'/%3E%3Cpath d='M168 232h150v70a66 66 0 0 1-66 66h-18a66 66 0 0 1-66-66v-70z' fill='none' stroke='%23F4EBDD' stroke-width='18'/%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%2310182F'/%3E%3Ccircle cx='256' cy='256' r='200' fill='none' stroke='%23D6AE55' stroke-width='8'/%3E%3C/svg%3E" />
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
@@ -17,18 +17,34 @@
   };
 </script>
 <style>
-  body { background:#090A0F; color:#F4EBDD; font-family:Inter,system-ui,sans-serif; overscroll-behavior-y:none; -webkit-tap-highlight-color:transparent; }
-  .bg-radial { background:radial-gradient(120% 90% at 50% 0%, #263A68 0%, #10182F 45%, #090A0F 100%); }
+  :root {
+    --c-primary: #D6AE55;
+    --c-bg: #090A0F;
+    --c-surface: #10182F;
+    --c-accent: #6E5AA6;
+  }
+  body { background:var(--c-bg); color:#F4EBDD; font-family:Inter,system-ui,sans-serif; overscroll-behavior-y:none; -webkit-tap-highlight-color:transparent; }
+  .bg-radial { background:radial-gradient(120% 90% at 50% 0%, var(--c-surface) 0%, var(--c-bg) 60%, #000 100%); }
   .card { background:rgba(16,24,47,.7); border:1px solid rgba(38,58,104,.6); border-radius:1rem; backdrop-filter:blur(4px); }
-  .btn-gold { background:#D6AE55; color:#090A0F; font-weight:600; padding:.75rem 1rem; border-radius:.75rem; }
-  .btn-ghost { border:1px solid #263A68; color:#F4EBDD; font-weight:600; padding:.75rem 1rem; border-radius:.75rem; }
-  input,textarea,select { background:rgba(9,10,15,.6); border:1px solid #263A68; color:#F4EBDD; border-radius:.75rem; padding:.75rem; width:100%; font-size:14px; }
+  .btn-gold { background:var(--c-primary); color:#090A0F; font-weight:600; padding:.75rem 1rem; border-radius:.75rem; transition:filter .15s; }
+  .btn-gold:hover { filter:brightness(1.1); }
+  .btn-gold:disabled { opacity:.5; cursor:not-allowed; }
+  .btn-ghost { border:1px solid #263A68; color:#F4EBDD; font-weight:600; padding:.75rem 1rem; border-radius:.75rem; background:transparent; }
+  .btn-ghost:hover { background:rgba(38,58,104,.4); }
+  .btn-danger { border:1px solid rgba(239,68,68,.5); background:rgba(239,68,68,.15); color:#fca5a5; font-weight:600; padding:.75rem 1rem; border-radius:.75rem; }
+  input,textarea,select { background:rgba(9,10,15,.6); border:1px solid #263A68; color:#F4EBDD; border-radius:.75rem; padding:.75rem; width:100%; font-size:14px; font-family:inherit; }
+  input:focus,textarea:focus,select:focus { outline:none; border-color:var(--c-primary); }
   input::placeholder,textarea::placeholder { color:rgba(244,235,221,.4); }
+  input[type="checkbox"] { width:auto; }
+  input[type="color"] { padding:.25rem; height:44px; cursor:pointer; }
   .fade { animation:fade .25s ease-out both; }
   @keyframes fade { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:none } }
-  .spin { display:inline-block; width:16px; height:16px; border:2px solid rgba(214,174,85,.3); border-top-color:#D6AE55; border-radius:50%; animation:s 1s linear infinite; vertical-align:middle; }
+  .spin { display:inline-block; width:16px; height:16px; border:2px solid rgba(214,174,85,.3); border-top-color:var(--c-primary); border-radius:50%; animation:s 1s linear infinite; vertical-align:middle; }
   @keyframes s { to { transform:rotate(360deg) } }
   .pb-safe { padding-bottom:calc(5.5rem + env(safe-area-inset-bottom,0px)); }
+  .line-clamp-2 { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .gold-text { color:var(--c-primary); }
+  .astral-text { color:var(--c-accent); }
 </style>
 </head>
 <body>
@@ -40,7 +56,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script type="text/babel" data-presets="react">
-const { useState, useEffect, useMemo, useCallback } = React;
+const { useState, useEffect, useMemo, useCallback, useRef } = React;
 const sb = window.supabase.createClient(
   "https://weoixcfpfgnxwfvluhlo.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indlb2l4Y2ZwZmdueHdmdmx1aGxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1NzEwOTYsImV4cCI6MjEwNzE0NzA5Nn0.a7pXkHSeVZcx9MAyTdIMF7yf0m0kda7I_rLHqEgvC80"
@@ -73,6 +89,15 @@ function zodiacMsg(sign, cartNames) {
   return { title:s+" · lectura de tu pedido", body:s+" de "+r.el+": "+r.t+" Tu pedido vibra con "+cartNames.slice(0,3).join(", ")+". "+r.c };
 }
 
+async function uploadToBucket(file, folder) {
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = folder + "/" + Math.random().toString(36).slice(2) + "-" + Date.now() + "." + ext;
+  const { error } = await sb.storage.from("brand-assets").upload(path, file, { cacheControl: "3600", upsert: false });
+  if (error) throw error;
+  const { data } = sb.storage.from("brand-assets").getPublicUrl(path);
+  return data.publicUrl;
+}
+
 function useAuth() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -93,6 +118,18 @@ function useProfile(user) {
   }, [user]);
   useEffect(()=>{ load(); },[load]);
   return { profile, reload: load };
+}
+
+function useSettings() {
+  const [settings, setSettings] = useState({});
+  const load = useCallback(async ()=>{
+    const { data } = await sb.from("app_settings").select("key,value");
+    const map = {};
+    for (const row of data||[]) map[row.key] = row.value;
+    setSettings(map);
+  }, []);
+  useEffect(()=>{ load(); }, [load]);
+  return { settings, reload: load };
 }
 
 function useCart() {
@@ -117,33 +154,34 @@ function useCart() {
   return { lines, add, remove, setQty, setNotes, clear, count, subtotal };
 }
 
-// ─── COMPONENTES UI ─────────────────────────────────────
 function Spinner({label="Cargando…"}) {
   return <div className="flex flex-col items-center gap-3 py-12 text-cream/60 text-xs"><span className="spin"></span>{label}</div>;
 }
-function Top({user, onProfile}) {
+
+function Top({user, onProfile, brand, logoUrl}) {
   return (
     <header className="sticky top-0 z-30 border-b border-cosmic/50 bg-ink/85 backdrop-blur-md">
       <div className="mx-auto flex max-w-md items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
-          <svg width="26" height="26" viewBox="0 0 512 512">
-            <circle cx="256" cy="256" r="200" fill="none" stroke="#D6AE55" strokeWidth="8"/>
-            <path d="M168 232h150v70a66 66 0 0 1-66 66h-18a66 66 0 0 1-66-66v-70z" fill="none" stroke="#F4EBDD" strokeWidth="18"/>
-            <path d="M318 250h22a34 34 0 0 1 0 68h-22" fill="none" stroke="#F4EBDD" strokeWidth="18"/>
-          </svg>
+          {logoUrl
+            ? <img src={logoUrl} alt="" style={{width:32,height:32,borderRadius:8,objectFit:"cover"}} />
+            : <svg width="26" height="26" viewBox="0 0 512 512">
+                <circle cx="256" cy="256" r="200" fill="none" stroke="var(--c-primary)" strokeWidth="8"/>
+                <path d="M168 232h150v70a66 66 0 0 1-66 66h-18a66 66 0 0 1-66-66v-70z" fill="none" stroke="#F4EBDD" strokeWidth="18"/>
+                <path d="M318 250h22a34 34 0 0 1 0 68h-22" fill="none" stroke="#F4EBDD" strokeWidth="18"/>
+              </svg>}
           <div className="leading-none">
-            <p className="font-display text-lg text-cream">Café Zodíaco</p>
-            <p className="text-[10px] uppercase tracking-[0.18em] text-gold/80">Café &amp; Zodiaco</p>
+            <p className="font-display text-lg text-cream">{brand.name}</p>
+            <p className="text-[10px] uppercase tracking-[0.18em] gold-text">{brand.tagline}</p>
           </div>
         </div>
-        {user
-          ? <button onClick={onProfile} className="text-xs text-gold underline">Mi perfil</button>
-          : <button onClick={onProfile} className="text-xs text-gold underline">Ingresar</button>}
+        <button onClick={onProfile} className="text-xs gold-text underline">{user?"Mi perfil":"Ingresar"}</button>
       </div>
     </header>
   );
 }
-function Bottom({page, setPage, cartCount, role}) {
+
+function Bottom({page, setPage, cartCount}) {
   const items = [
     {k:"menu", label:"Menú", ico:"M4 5h11v14H4z"},
     {k:"cart", label:"Carrito", ico:"M2 3h3l2.4 11.2a2 2 0 0 0 2 1.6h8.2L21 7H6"},
@@ -156,10 +194,10 @@ function Bottom({page, setPage, cartCount, role}) {
       <ul className="mx-auto flex max-w-md items-stretch justify-between px-1">
         {items.map(it => (
           <li key={it.k} className="flex-1">
-            <button onClick={()=>setPage(it.k)} className={cx("flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2.5 text-[10px] font-medium transition", page===it.k?"text-gold":"text-cream/55")}>
+            <button onClick={()=>setPage(it.k)} className={cx("flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2.5 text-[10px] font-medium transition", page===it.k?"gold-text":"text-cream/55")}>
               <span className="relative">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={it.ico}/></svg>
-                {it.k==="cart" && cartCount>0 && <span className="absolute -right-2 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-gold px-1 text-[9px] font-bold text-ink">{cartCount>99?"99+":cartCount}</span>}
+                {it.k==="cart" && cartCount>0 && <span className="absolute -right-2 -top-1 grid h-4 min-w-4 place-items-center rounded-full px-1 text-[9px] font-bold text-ink" style={{background:"var(--c-primary)"}}>{cartCount>99?"99+":cartCount}</span>}
               </span>
               <span>{it.label}</span>
             </button>
@@ -169,6 +207,7 @@ function Bottom({page, setPage, cartCount, role}) {
     </nav>
   );
 }
+
 function Toast({toasts, dismiss}) {
   if (!toasts.length) return null;
   return (
@@ -185,7 +224,6 @@ function Toast({toasts, dismiss}) {
   );
 }
 
-// ─── PANTALLAS ──────────────────────────────────────────
 function LoginScreen({ onDone }) {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -195,7 +233,7 @@ function LoginScreen({ onDone }) {
 
   async function send(e) {
     e.preventDefault(); setBusy(true); setErr(null);
-    const { error } = await sb.auth.signInWithOtp({ email: email.trim().toLowerCase(), options:{ shouldCreateUser:true } });
+    const { error } = await sb.auth.signInWithOtp({ email: email.trim().toLowerCase(), options:{ shouldCreateUser:true, emailRedirectTo: window.location.origin + window.location.pathname } });
     setBusy(false);
     if (error) setErr(error.message); else setStage("otp");
   }
@@ -210,7 +248,7 @@ function LoginScreen({ onDone }) {
       <div className="mx-auto w-full max-w-sm space-y-6 fade">
         <div className="text-center">
           <h1 className="font-display text-4xl text-cream">Café Zodíaco</h1>
-          <p className="mt-1 text-xs uppercase tracking-[0.2em] text-gold/80">Ingresá con tu email</p>
+          <p className="mt-1 text-xs uppercase tracking-[0.2em] gold-text">Ingresá con tu email</p>
         </div>
         <div className="card p-5 space-y-4">
           {stage==="email" ? (
@@ -219,12 +257,12 @@ function LoginScreen({ onDone }) {
                 <input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@email.com" />
               </label>
               <button disabled={busy} className="btn-gold w-full">{busy?"Enviando…":"Enviar código"}</button>
-              <p className="text-[11px] text-cream/50">Te enviamos un código de 6 dígitos.</p>
+              <p className="text-[11px] text-cream/50">Te llega un código de 6 dígitos.</p>
             </form>
           ) : (
             <form onSubmit={verify} className="space-y-4">
               <label className="block space-y-1">
-                <span className="text-xs text-cream/70">Código enviado a <b className="text-gold">{email}</b></span>
+                <span className="text-xs text-cream/70">Código enviado a <b className="gold-text">{email}</b></span>
                 <input inputMode="numeric" maxLength={6} value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,""))} placeholder="••••••" style={{textAlign:"center",fontSize:24,letterSpacing:8}} />
               </label>
               <button disabled={busy || code.length!==6} className="btn-gold w-full">{busy?"Verificando…":"Ingresar"}</button>
@@ -238,7 +276,7 @@ function LoginScreen({ onDone }) {
   );
 }
 
-function MenuScreen({ profile, cart, toast }) {
+function MenuScreen({ profile, cart, toast, settings }) {
   const [products, setProducts] = useState([]);
   const [cats, setCats] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -269,21 +307,21 @@ function MenuScreen({ profile, cart, toast }) {
   return (
     <div className="space-y-4 fade">
       <section className="card relative overflow-hidden border-astral/40 p-4">
-        <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-gold/10 blur-2xl"></div>
-        <p className="text-[10px] uppercase tracking-[0.24em] text-gold/80">✦ Qué dicen hoy las estrellas</p>
+        <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full blur-2xl" style={{background:"rgba(214,174,85,.1)"}}></div>
+        <p className="text-[10px] uppercase tracking-[0.24em] gold-text">✦ Qué dicen hoy las estrellas</p>
         <h2 className="mt-1 font-display text-lg text-cream">{msg.title}</h2>
         <p className="mt-1 text-sm leading-relaxed text-cream/80">{msg.body}</p>
       </section>
 
       <header className="space-y-1">
-        <h1 className="font-display text-2xl text-cream">Nuestro menú</h1>
+        <h1 className="font-display text-2xl text-cream">{settings['brand.name'] || "Nuestro menú"}</h1>
         <p className="text-xs text-cream/60">Café de especialidad, mensajes del zodiaco y puntos en cada pedido.</p>
       </header>
 
       <nav className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
-        <button onClick={()=>setTab("__all__")} className={cx("shrink-0 rounded-full border px-4 py-1.5 text-xs font-medium", tab==="__all__"?"border-gold bg-gold/15 text-gold":"border-cosmic/70 bg-night/40 text-cream/70")}>Todos</button>
+        <button onClick={()=>setTab("__all__")} className={cx("shrink-0 rounded-full border px-4 py-1.5 text-xs font-medium", tab==="__all__"?"border-gold bg-gold/15 gold-text":"border-cosmic/70 bg-night/40 text-cream/70")}>Todos</button>
         {cats.map(c=>(
-          <button key={c.id} onClick={()=>setTab(c.id)} className={cx("shrink-0 rounded-full border px-4 py-1.5 text-xs font-medium", tab===c.id?"border-gold bg-gold/15 text-gold":"border-cosmic/70 bg-night/40 text-cream/70")}>{c.name}</button>
+          <button key={c.id} onClick={()=>setTab(c.id)} className={cx("shrink-0 rounded-full border px-4 py-1.5 text-xs font-medium", tab===c.id?"border-gold bg-gold/15 gold-text":"border-cosmic/70 bg-night/40 text-cream/70")}>{c.name}</button>
         ))}
       </nav>
 
@@ -291,8 +329,10 @@ function MenuScreen({ profile, cart, toast }) {
 
       <div className="space-y-3">
         {visible.map(p=>(
-          <article key={p.id} className={cx("card flex gap-3 p-3", !p.is_available && "opacity-55")}>
-            <div className="grid shrink-0 place-items-center rounded-xl border border-cosmic/60 bg-gradient-to-br from-cosmic/70 via-night to-ink text-lg font-semibold text-gold/90" style={{width:72,height:72}}>{(p.name[0]||"·").toUpperCase()}</div>
+          <article key={p.id} className={cx("card flex gap-3 p-3", (!p.is_available || p.stock_quantity===0) && "opacity-55")}>
+            {p.image_url
+              ? <img src={p.image_url} alt="" style={{width:72,height:72,objectFit:"cover",borderRadius:12,flexShrink:0}} />
+              : <div className="grid shrink-0 place-items-center rounded-xl border border-cosmic/60 text-lg font-semibold gold-text" style={{width:72,height:72,background:"linear-gradient(135deg,rgba(38,58,104,.7),#090A0F)"}}>{(p.name[0]||"·").toUpperCase()}</div>}
             <div className="flex min-w-0 flex-1 flex-col justify-between">
               <div className="min-w-0">
                 <h3 className="truncate font-display text-lg leading-tight text-cream">{p.name}</h3>
@@ -300,10 +340,10 @@ function MenuScreen({ profile, cart, toast }) {
               </div>
               <div className="mt-2 flex items-end justify-between gap-2">
                 <div className="leading-tight">
-                  <p className="font-semibold text-gold">{fmt(p.price_cents)}</p>
-                  {p.points_earned>0 && <p className="text-[10px] uppercase tracking-widest text-astral/90">+{p.points_earned} pts</p>}
+                  <p className="font-semibold gold-text">{fmt(p.price_cents)}</p>
+                  {p.points_earned>0 && <p className="text-[10px] uppercase tracking-widest astral-text">+{p.points_earned} pts</p>}
                 </div>
-                <button disabled={!p.is_available} onClick={()=>add(p)} className="btn-gold text-xs" style={{padding:".5rem .75rem"}}>{p.is_available?"Agregar":"Sin stock"}</button>
+                <button disabled={!p.is_available || p.stock_quantity===0} onClick={()=>add(p)} className="btn-gold text-xs" style={{padding:".5rem .75rem"}}>{(p.is_available && p.stock_quantity!==0)?"Agregar":"Sin stock"}</button>
               </div>
             </div>
           </article>
@@ -376,8 +416,8 @@ function CartScreen({ cart, user, toast, goTo }) {
       </header>
 
       <div className="grid grid-cols-2 gap-2">
-        <button onClick={()=>setOrderType("pickup")} className={cx("rounded-xl border px-3 py-3 text-sm font-medium", orderType==="pickup"?"border-gold bg-gold/15 text-gold":"border-cosmic bg-night/40 text-cream/70")}>Retiro en local</button>
-        <button onClick={()=>setOrderType("delivery")} className={cx("rounded-xl border px-3 py-3 text-sm font-medium", orderType==="delivery"?"border-gold bg-gold/15 text-gold":"border-cosmic bg-night/40 text-cream/70")}>Delivery</button>
+        <button onClick={()=>setOrderType("pickup")} className={cx("rounded-xl border px-3 py-3 text-sm font-medium", orderType==="pickup"?"border-gold bg-gold/15 gold-text":"border-cosmic bg-night/40 text-cream/70")}>Retiro en local</button>
+        <button onClick={()=>setOrderType("delivery")} className={cx("rounded-xl border px-3 py-3 text-sm font-medium", orderType==="delivery"?"border-gold bg-gold/15 gold-text":"border-cosmic bg-night/40 text-cream/70")}>Delivery</button>
       </div>
 
       <div className="space-y-3">
@@ -396,7 +436,7 @@ function CartScreen({ cart, user, toast, goTo }) {
                 <span className="w-8 text-center text-sm font-semibold">{l.quantity}</span>
                 <button onClick={()=>cart.setQty(l.key, l.quantity+1)} className="grid h-9 w-9 place-items-center text-lg">+</button>
               </div>
-              <p className="text-sm font-semibold text-gold">{fmt(l.price_cents*l.quantity)}</p>
+              <p className="text-sm font-semibold gold-text">{fmt(l.price_cents*l.quantity)}</p>
             </div>
             <textarea rows={2} maxLength={200} placeholder="Nota: sin azúcar, leche descremada…" value={l.notes||""} onChange={e=>cart.setNotes(l.key,e.target.value)} className="text-xs" />
           </article>
@@ -423,8 +463,8 @@ function CartScreen({ cart, user, toast, goTo }) {
             <div className="flex justify-between text-sm"><span className="text-cream/60">Subtotal</span><span>{fmt(preview.subtotal_cents)}</span></div>
             {orderType==="delivery" && <div className="flex justify-between text-sm"><span className="text-cream/60">Envío</span><span>{fmt(preview.delivery_fee_cents)}</span></div>}
             <div className="my-1 h-px bg-cosmic/60"></div>
-            <div className="flex justify-between text-sm font-semibold"><span className="text-cream">Total</span><span className="text-gold">{fmt(preview.total_cents)}</span></div>
-            {preview.points_earned>0 && <p className="text-[11px] text-astral/90 pt-1">Vas a sumar <b>+{preview.points_earned} pts</b>.</p>}
+            <div className="flex justify-between text-sm font-semibold"><span className="text-cream">Total</span><span className="gold-text">{fmt(preview.total_cents)}</span></div>
+            {preview.points_earned>0 && <p className="text-[11px] astral-text pt-1">Vas a sumar <b>+{preview.points_earned} pts</b>.</p>}
             {preview.below_minimum && <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">Mínimo para delivery: {fmt(preview.delivery_min_cents)}.</p>}
           </>
         )}
@@ -432,13 +472,13 @@ function CartScreen({ cart, user, toast, goTo }) {
 
       <div className="card p-4">
         <label className="block space-y-1">
-          <span className="text-[11px] uppercase tracking-widest text-gold/80">Comentarios (opcional)</span>
+          <span className="text-[11px] uppercase tracking-widest gold-text">Comentarios (opcional)</span>
           <textarea rows={2} maxLength={300} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ej: timbre 3B" />
         </label>
       </div>
 
       <div className="space-y-2 pb-2">
-        <button onClick={confirm} disabled={disabled} className="btn-gold w-full" style={{opacity:disabled?.5:1}}>
+        <button onClick={confirm} disabled={disabled} className="btn-gold w-full">
           {busy?"Confirmando…":!user?"Iniciá sesión para continuar":belowMin?"Monto mínimo no alcanzado":(orderType==="delivery"&&!addrOk)?"Completá la dirección":"Confirmar pedido"}
         </button>
         {!user && <p className="text-center text-[11px] text-cream/50">Necesitás una cuenta para hacer pedidos.</p>}
@@ -469,7 +509,6 @@ function OrdersScreen({ user, goTo, detailId }) {
     }
   }, [user, detailId]);
 
-  // polling detail
   useEffect(()=>{
     if (!detailId) return;
     const t = setInterval(()=>{
@@ -514,7 +553,7 @@ function OrdersScreen({ user, goTo, detailId }) {
                     {i<steps.length-1 && <span className={cx("my-1 w-px flex-1", done?"bg-emerald-400/40":"bg-cosmic/60")} style={{minHeight:"1.5rem"}}></span>}
                   </div>
                   <div className="pb-4">
-                    <p className={cx("text-sm leading-tight", cur&&"font-semibold text-gold", done&&"text-cream/85", !done&&!cur&&"text-cream/45")}>{STATUS_LABEL[s]}</p>
+                    <p className={cx("text-sm leading-tight", cur&&"font-semibold gold-text", done&&"text-cream/85", !done&&!cur&&"text-cream/45")}>{STATUS_LABEL[s]}</p>
                   </div>
                 </li>
               );
@@ -523,7 +562,7 @@ function OrdersScreen({ user, goTo, detailId }) {
         )}
 
         <div className="card divide-y divide-cosmic/60">
-          <div className="px-4 py-3"><p className="text-[11px] uppercase tracking-widest text-gold/80">Ítems</p></div>
+          <div className="px-4 py-3"><p className="text-[11px] uppercase tracking-widest gold-text">Ítems</p></div>
           {items.map(it=>(
             <div key={it.id} className="flex items-start justify-between gap-3 px-4 py-3">
               <div className="min-w-0">
@@ -539,7 +578,7 @@ function OrdersScreen({ user, goTo, detailId }) {
           <div className="flex justify-between"><span className="text-cream/60">Subtotal</span><span>{fmt(detail.subtotal_cents)}</span></div>
           {detail.order_type==="delivery" && <div className="flex justify-between"><span className="text-cream/60">Envío</span><span>{fmt(detail.delivery_fee_cents)}</span></div>}
           <div className="my-1 h-px bg-cosmic/60"></div>
-          <div className="flex justify-between font-semibold"><span className="text-cream">Total</span><span className="text-gold">{fmt(detail.total_cents)}</span></div>
+          <div className="flex justify-between font-semibold"><span className="text-cream">Total</span><span className="gold-text">{fmt(detail.total_cents)}</span></div>
         </div>
 
         {detail.status==="pending" && (
@@ -568,7 +607,7 @@ function OrdersScreen({ user, goTo, detailId }) {
                 </div>
                 <span className={cx("rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest", STATUS_TONE[o.status])}>{STATUS_LABEL[o.status]}</span>
               </div>
-              <div className="mt-3 flex justify-end"><span className="font-semibold text-gold">{fmt(o.total_cents)}</span></div>
+              <div className="mt-3 flex justify-end"><span className="font-semibold gold-text">{fmt(o.total_cents)}</span></div>
             </button>
           </li>
         ))}
@@ -609,22 +648,22 @@ function RewardsScreen({ user, profile, toast }) {
   return (
     <div className="space-y-5 fade">
       <header className="card relative overflow-hidden border-gold/40 p-5">
-        <div className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-gold/15 blur-3xl"></div>
-        <p className="text-[10px] uppercase tracking-[0.28em] text-gold/80">Tus puntos</p>
+        <div className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full blur-3xl" style={{background:"rgba(214,174,85,.15)"}}></div>
+        <p className="text-[10px] uppercase tracking-[0.28em] gold-text">Tus puntos</p>
         <p className="mt-1 font-display text-5xl leading-none text-cream">{balance}</p>
       </header>
 
       <section className="space-y-3">
-        <h2 className="text-[11px] font-medium uppercase tracking-[0.18em] text-gold/80">Recompensas</h2>
+        <h2 className="text-[11px] font-medium uppercase tracking-[0.18em] gold-text">Recompensas</h2>
         {rewards.map(r=>{
           const ok = balance >= r.cost_points;
           return (
             <article key={r.id} className={cx("card flex items-center gap-4 p-4", !ok && "opacity-55")}>
-              <div className="grid h-14 w-14 place-items-center rounded-xl border border-gold/40 bg-gold/10 text-xl text-gold">★</div>
+              <div className="grid h-14 w-14 place-items-center rounded-xl border border-gold/40 bg-gold/10 text-xl gold-text">★</div>
               <div className="min-w-0 flex-1">
                 <h3 className="truncate font-display text-base text-cream">{r.name}</h3>
                 {r.description && <p className="text-[11px] text-cream/60">{r.description}</p>}
-                <p className="mt-1 text-xs text-gold">{r.cost_points} pts</p>
+                <p className="mt-1 text-xs gold-text">{r.cost_points} pts</p>
               </div>
               <button disabled={!ok || busyId===r.id} onClick={()=>redeem(r)} className={cx(ok?"btn-gold":"btn-ghost","text-xs")} style={{padding:".5rem .75rem"}}>
                 {busyId===r.id?"…":ok?"Canjear":"Bloqueado"}
@@ -635,7 +674,7 @@ function RewardsScreen({ user, profile, toast }) {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-[11px] font-medium uppercase tracking-[0.18em] text-astral/90">Movimientos</h2>
+        <h2 className="text-[11px] font-medium uppercase tracking-[0.18em] astral-text">Movimientos</h2>
         {txs.length===0 && <div className="card p-4 text-sm text-cream/60">Sin movimientos.</div>}
         {txs.length>0 && (
           <ul className="card divide-y divide-cosmic/60">
@@ -667,8 +706,6 @@ function ProfileScreen({ user, profile, onSignOut, reload, goTo }) {
     setFullName(profile.full_name||""); setPhone(profile.phone||""); setBirthDate(profile.birth_date||"");
   }, [profile]);
 
-  if (!user) return <LoginScreen/>;
-
   async function save(e) {
     e.preventDefault(); setBusy(true); setMsg(null);
     const { error } = await sb.rpc("update_my_profile", {
@@ -679,10 +716,12 @@ function ProfileScreen({ user, profile, onSignOut, reload, goTo }) {
     else { setMsg({kind:"ok",text:"Perfil actualizado."}); reload(); }
   }
 
+  if (!user) return <LoginScreen/>;
+
   return (
     <div className="space-y-5 fade">
       <header className="flex items-center gap-4">
-        <div className="grid h-14 w-14 place-items-center rounded-full border border-cosmic bg-night/60 text-xl text-gold">
+        <div className="grid h-14 w-14 place-items-center rounded-full border border-cosmic bg-night/60 text-xl gold-text">
           {(profile?.full_name?.[0]||user.email[0]||"·").toUpperCase()}
         </div>
         <div className="min-w-0">
@@ -692,8 +731,8 @@ function ProfileScreen({ user, profile, onSignOut, reload, goTo }) {
       </header>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="card p-4"><p className="text-[11px] uppercase tracking-widest text-gold/80">Puntos</p><p className="font-display text-3xl text-cream">{profile?.points_balance??0}</p></div>
-        <div className="card p-4"><p className="text-[11px] uppercase tracking-widest text-astral/90">Signo</p><p className="font-display text-2xl text-cream">{profile?.zodiac_sign?SIGN_LABEL[profile.zodiac_sign]:"—"}</p></div>
+        <div className="card p-4"><p className="text-[11px] uppercase tracking-widest gold-text">Puntos</p><p className="font-display text-3xl text-cream">{profile?.points_balance??0}</p></div>
+        <div className="card p-4"><p className="text-[11px] uppercase tracking-widest astral-text">Signo</p><p className="font-display text-2xl text-cream">{profile?.zodiac_sign?SIGN_LABEL[profile.zodiac_sign]:"—"}</p></div>
       </div>
 
       <form onSubmit={save} className="card p-5 space-y-4">
@@ -722,12 +761,15 @@ function ProfileScreen({ user, profile, onSignOut, reload, goTo }) {
   );
 }
 
-function AdminScreen({ user, profile, toast, goTo }) {
+function AdminScreen({ user, profile, toast, reloadSettings }) {
   const [tab, setTab] = useState("orders");
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
+  const [cats, setCats] = useState([]);
+  const [branding, setBranding] = useState(null);
   const [loading, setLoading] = useState(true);
   const [includeTerm, setIncludeTerm] = useState(false);
+  const [editing, setEditing] = useState(null);
 
   async function load() {
     setLoading(true);
@@ -737,8 +779,23 @@ function AdminScreen({ user, profile, toast, goTo }) {
       const { data } = await q;
       setOrders(data||[]);
     } else if (tab==="products") {
-      const { data } = await sb.from("products").select("*").order("sort_order");
-      setProducts(data||[]);
+      const [p, c] = await Promise.all([
+        sb.from("products").select("*").order("sort_order"),
+        sb.from("categories").select("*").order("sort_order")
+      ]);
+      setProducts(p.data||[]); setCats(c.data||[]);
+    } else if (tab==="branding") {
+      const { data } = await sb.from("app_settings").select("key,value").like("key","brand.%");
+      const map = {}; for (const r of data||[]) map[r.key]=r.value;
+      setBranding({
+        name: map['brand.name'] || "Café Zodíaco",
+        tagline: map['brand.tagline'] || "Café & Zodiaco",
+        logo_url: map['brand.logo_url'] || null,
+        color_primary: map['brand.color_primary'] || "#D6AE55",
+        color_bg: map['brand.color_bg'] || "#090A0F",
+        color_surface: map['brand.color_surface'] || "#10182F",
+        color_accent: map['brand.color_accent'] || "#6E5AA6"
+      });
     }
     setLoading(false);
   }
@@ -750,28 +807,48 @@ function AdminScreen({ user, profile, toast, goTo }) {
     const { error } = await sb.rpc("admin_update_order_status",{ p_order_id:orderId, p_status:status });
     if (error) toast("error", error.message); else { toast("success","Estado: "+status); load(); }
   }
-
   async function toggleProduct(p, field) {
     const upd = {}; upd[field] = !p[field];
     const { error } = await sb.from("products").update(upd).eq("id",p.id);
     if (error) toast("error", error.message); else load();
   }
-
   async function updatePrice(p, cents) {
     const { error } = await sb.from("products").update({ price_cents: cents }).eq("id", p.id);
     if (error) toast("error", error.message); else { toast("success","Precio actualizado"); load(); }
+  }
+  async function deleteProduct(p) {
+    if (!confirm("¿Borrar \""+p.name+"\"?")) return;
+    const { error } = await sb.from("products").delete().eq("id", p.id);
+    if (error) toast("error", error.message); else { toast("success","Producto borrado"); load(); }
+  }
+  async function saveBranding() {
+    const updates = [
+      ['brand.name', branding.name],
+      ['brand.tagline', branding.tagline],
+      ['brand.logo_url', branding.logo_url],
+      ['brand.color_primary', branding.color_primary],
+      ['brand.color_bg', branding.color_bg],
+      ['brand.color_surface', branding.color_surface],
+      ['brand.color_accent', branding.color_accent]
+    ];
+    for (const [k,v] of updates) {
+      await sb.rpc("admin_upsert_app_setting", { p_key:k, p_value:v, p_description:null });
+    }
+    toast("success","Personalización guardada");
+    if (reloadSettings) await reloadSettings();
+    applyTheme(branding);
   }
 
   return (
     <div className="space-y-4 fade">
       <header className="space-y-1">
-        <p className="text-[10px] uppercase tracking-[0.28em] text-gold/80">Panel</p>
+        <p className="text-[10px] uppercase tracking-[0.28em] gold-text">Panel</p>
         <h1 className="font-display text-2xl text-cream">Operación</h1>
       </header>
 
-      <nav className="flex gap-2 overflow-x-auto -mx-4 px-4 no-scrollbar">
-        {[{k:"orders",l:"Pedidos"},{k:"products",l:"Productos"}].map(t=>(
-          <button key={t.k} onClick={()=>setTab(t.k)} className={cx("shrink-0 rounded-full border px-4 py-1.5 text-xs font-medium", tab===t.k?"border-gold bg-gold/15 text-gold":"border-cosmic/70 bg-night/40 text-cream/70")}>{t.l}</button>
+      <nav className="flex gap-2 overflow-x-auto -mx-4 px-4">
+        {[{k:"orders",l:"Pedidos"},{k:"products",l:"Productos"},{k:"branding",l:"Personalización"}].map(t=>(
+          <button key={t.k} onClick={()=>setTab(t.k)} className={cx("shrink-0 rounded-full border px-4 py-1.5 text-xs font-medium", tab===t.k?"border-gold bg-gold/15 gold-text":"border-cosmic/70 bg-night/40 text-cream/70")}>{t.l}</button>
         ))}
       </nav>
 
@@ -780,7 +857,7 @@ function AdminScreen({ user, profile, toast, goTo }) {
       {tab==="orders" && !loading && (
         <>
           <label className="flex items-center gap-2 text-[11px] text-cream/70">
-            <input type="checkbox" checked={includeTerm} onChange={e=>setIncludeTerm(e.target.checked)} style={{width:"auto"}} /> Incluir finalizados
+            <input type="checkbox" checked={includeTerm} onChange={e=>setIncludeTerm(e.target.checked)} /> Incluir finalizados
           </label>
           {orders.length===0 && <div className="card p-5 text-center text-sm text-cream/60">No hay pedidos en curso.</div>}
           {orders.map(o=>{
@@ -796,12 +873,12 @@ function AdminScreen({ user, profile, toast, goTo }) {
                   </div>
                   <span className={cx("rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-widest", STATUS_TONE[o.status])}>{STATUS_LABEL[o.status]}</span>
                 </div>
-                <div className="flex justify-between text-sm"><span className="text-cream/60">Total</span><span className="text-gold font-semibold">{fmt(o.total_cents)}</span></div>
+                <div className="flex justify-between text-sm"><span className="text-cream/60">Total</span><span className="gold-text font-semibold">{fmt(o.total_cents)}</span></div>
                 {o.customer_notes && <p className="text-[11px] text-cream/70">📝 {o.customer_notes}</p>}
                 <div className="flex flex-wrap gap-2 pt-1">
                   {next && <button onClick={()=>changeStatus(o.id,next)} className="btn-gold text-xs" style={{padding:".4rem .75rem"}}>→ {STATUS_LABEL[next]}</button>}
                   {o.status!=="cancelled" && !["completed","cancelled","rejected"].includes(o.status) && (
-                    <button onClick={()=>changeStatus(o.id,"cancelled")} className="rounded-xl border border-red-500/50 bg-red-500/15 text-red-200 px-3 py-2 text-xs">Cancelar</button>
+                    <button onClick={()=>changeStatus(o.id,"cancelled")} className="btn-danger text-xs" style={{padding:".4rem .75rem"}}>Cancelar</button>
                   )}
                 </div>
               </article>
@@ -811,39 +888,254 @@ function AdminScreen({ user, profile, toast, goTo }) {
       )}
 
       {tab==="products" && !loading && (
-        <div className="space-y-3">
+        <>
+          <div className="flex justify-between items-center">
+            <p className="text-xs text-cream/60">{products.length} producto(s)</p>
+            <button onClick={()=>setEditing({ id:null, name:"", description:"", price_cents:0, points_earned:0, category_id:null, image_url:null, is_available:true, is_active:true, sort_order:0, stock_quantity:null })}
+              className="btn-gold text-xs" style={{padding:".5rem .75rem"}}>+ Nuevo producto</button>
+          </div>
           {products.map(p=>(
             <article key={p.id} className="card p-4 space-y-2">
-              <div className="flex justify-between gap-3">
-                <div className="min-w-0">
+              <div className="flex gap-3 items-start">
+                {p.image_url
+                  ? <img src={p.image_url} alt="" style={{width:56,height:56,objectFit:"cover",borderRadius:8,flexShrink:0}} />
+                  : <div className="grid place-items-center rounded-lg border border-cosmic/60 text-sm gold-text" style={{width:56,height:56}}>{(p.name[0]||"·").toUpperCase()}</div>}
+                <div className="min-w-0 flex-1">
                   <p className="truncate text-sm text-cream">{p.name}</p>
-                  <p className="text-[11px] text-cream/55">{p.is_active?"activo":"inactivo"} · {p.is_available?"disponible":"sin stock"}</p>
+                  <p className="text-[11px] text-cream/55">{fmt(p.price_cents)} · {p.points_earned} pts · {p.is_active?"activo":"inactivo"} · {p.is_available?(p.stock_quantity===0?"sin stock":"disponible"):"sin stock"}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <input type="number" defaultValue={p.price_cents} onBlur={e=>{ const n=Number(e.target.value); if(n!==p.price_cents) updatePrice(p, n); }} style={{maxWidth:120}} />
-                <span className="text-xs text-cream/60">centavos</span>
-              </div>
               <div className="flex flex-wrap gap-2">
+                <button onClick={()=>setEditing({...p})} className="btn-ghost text-xs" style={{padding:".4rem .75rem"}}>Editar</button>
                 <button onClick={()=>toggleProduct(p,"is_available")} className="btn-ghost text-xs" style={{padding:".4rem .75rem"}}>{p.is_available?"Marcar sin stock":"Marcar disponible"}</button>
                 <button onClick={()=>toggleProduct(p,"is_active")} className="btn-ghost text-xs" style={{padding:".4rem .75rem"}}>{p.is_active?"Desactivar":"Activar"}</button>
+                <button onClick={()=>deleteProduct(p)} className="btn-danger text-xs" style={{padding:".4rem .75rem"}}>Borrar</button>
               </div>
             </article>
           ))}
-        </div>
+        </>
+      )}
+
+      {tab==="branding" && !loading && branding && (
+        <BrandingForm value={branding} onChange={setBranding} onSave={saveBranding} />
+      )}
+
+      {editing && (
+        <ProductFormModal
+          value={editing}
+          categories={cats}
+          onClose={()=>setEditing(null)}
+          onSaved={()=>{ setEditing(null); load(); }}
+          toast={toast}
+        />
       )}
     </div>
   );
 }
 
-// ─── APP ────────────────────────────────────────────────
+function applyTheme(b) {
+  document.documentElement.style.setProperty("--c-primary", b.color_primary || "#D6AE55");
+  document.documentElement.style.setProperty("--c-bg", b.color_bg || "#090A0F");
+  document.documentElement.style.setProperty("--c-surface", b.color_surface || "#10182F");
+  document.documentElement.style.setProperty("--c-accent", b.color_accent || "#6E5AA6");
+}
+
+function BrandingForm({ value, onChange, onSave }) {
+  const [busy, setBusy] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const fileRef = useRef(null);
+
+  async function handleLogo(file) {
+    if (!file) return;
+    setUploadingLogo(true);
+    try { const url = await uploadToBucket(file, "logos"); onChange({...value, logo_url:url}); }
+    catch(e) { alert("Error al subir: "+e.message); }
+    setUploadingLogo(false);
+  }
+
+  async function save() {
+    setBusy(true); await onSave(); setBusy(false);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="card p-4 space-y-3">
+        <h3 className="font-display text-base text-cream">Marca</h3>
+        <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Nombre de la app</span>
+          <input value={value.name} onChange={e=>onChange({...value, name:e.target.value})} />
+        </label>
+        <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Subtítulo</span>
+          <input value={value.tagline} onChange={e=>onChange({...value, tagline:e.target.value})} />
+        </label>
+        <div>
+          <span className="text-[11px] uppercase tracking-widest gold-text">Logo (opcional)</span>
+          <div className="mt-2 flex gap-3 items-center">
+            {value.logo_url && <img src={value.logo_url} alt="" style={{width:56,height:56,objectFit:"cover",borderRadius:8}} />}
+            <input type="file" ref={fileRef} accept="image/*" style={{display:"none"}} onChange={e=>handleLogo(e.target.files[0])} />
+            <button type="button" onClick={()=>fileRef.current.click()} className="btn-ghost text-xs" style={{padding:".5rem .75rem"}} disabled={uploadingLogo}>
+              {uploadingLogo?"Subiendo…":value.logo_url?"Cambiar logo":"Subir logo"}
+            </button>
+            {value.logo_url && <button type="button" onClick={()=>onChange({...value, logo_url:null})} className="text-xs text-red-300">Quitar</button>}
+          </div>
+        </div>
+      </div>
+
+      <div className="card p-4 space-y-3">
+        <h3 className="font-display text-base text-cream">Colores</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Principal</span>
+            <input type="color" value={value.color_primary} onChange={e=>onChange({...value, color_primary:e.target.value})} />
+          </label>
+          <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Fondo</span>
+            <input type="color" value={value.color_bg} onChange={e=>onChange({...value, color_bg:e.target.value})} />
+          </label>
+          <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Superficies</span>
+            <input type="color" value={value.color_surface} onChange={e=>onChange({...value, color_surface:e.target.value})} />
+          </label>
+          <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Acento</span>
+            <input type="color" value={value.color_accent} onChange={e=>onChange({...value, color_accent:e.target.value})} />
+          </label>
+        </div>
+        <div className="rounded-xl border border-cosmic/60 p-4" style={{background:"var(--c-bg)"}}>
+          <p className="text-[10px] uppercase tracking-widest" style={{color:"var(--c-primary)"}}>Vista previa</p>
+          <p className="font-display text-xl mt-1" style={{color:"#F4EBDD"}}>{value.name}</p>
+          <p className="text-xs" style={{color:"var(--c-primary)"}}>{value.tagline}</p>
+          <div className="mt-3 flex gap-2">
+            <span className="rounded-lg px-3 py-1 text-xs font-semibold" style={{background:"var(--c-primary)",color:"#090A0F"}}>Botón</span>
+            <span className="rounded-lg px-3 py-1 text-xs font-semibold" style={{background:"var(--c-accent)",color:"#F4EBDD"}}>Acento</span>
+          </div>
+        </div>
+      </div>
+
+      <button onClick={save} disabled={busy} className="btn-gold w-full">{busy?"Guardando…":"Guardar personalización"}</button>
+    </div>
+  );
+}
+
+function ProductFormModal({ value, categories, onClose, onSaved, toast }) {
+  const [form, setForm] = useState(value);
+  const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef(null);
+
+  function upd(k, v) { setForm(f=>({...f, [k]:v})); }
+
+  async function handleImage(file) {
+    if (!file) return;
+    setUploading(true);
+    try { const url = await uploadToBucket(file, "products"); upd("image_url", url); }
+    catch(e) { toast("error","Error al subir: "+e.message); }
+    setUploading(false);
+  }
+
+  async function save(e) {
+    e.preventDefault(); setBusy(true);
+    const payload = {
+      name: form.name, description: form.description||null,
+      price_cents: Number(form.price_cents)||0,
+      points_earned: Number(form.points_earned)||0,
+      category_id: form.category_id||null,
+      image_url: form.image_url||null,
+      is_available: !!form.is_available, is_active: !!form.is_active,
+      sort_order: Number(form.sort_order)||0,
+      stock_quantity: form.stock_quantity===""||form.stock_quantity==null ? null : Number(form.stock_quantity)
+    };
+    let res;
+    if (form.id) res = await sb.from("products").update(payload).eq("id", form.id);
+    else res = await sb.from("products").insert(payload);
+    setBusy(false);
+    if (res.error) { toast("error", res.error.message); return; }
+    toast("success", form.id ? "Producto actualizado" : "Producto creado");
+    onSaved();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center">
+      <button onClick={onClose} className="absolute inset-0 bg-black/70 backdrop-blur-sm" aria-label="Cerrar"></button>
+      <div className="relative w-full max-w-md max-h-[92vh] overflow-y-auto rounded-t-2xl border-t border-cosmic bg-night pb-6">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-cosmic/60 bg-night/95 px-4 py-3 backdrop-blur">
+          <h2 className="font-display text-lg text-cream">{form.id?"Editar producto":"Nuevo producto"}</h2>
+          <button onClick={onClose} className="text-2xl text-cream/60">×</button>
+        </div>
+        <form onSubmit={save} className="p-4 space-y-3">
+          <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Nombre</span>
+            <input required value={form.name} onChange={e=>upd("name",e.target.value)} />
+          </label>
+          <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Categoría</span>
+            <select value={form.category_id||""} onChange={e=>upd("category_id", e.target.value||null)}>
+              <option value="">Sin categoría</option>
+              {categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </label>
+          <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Descripción</span>
+            <textarea rows={3} maxLength={280} value={form.description||""} onChange={e=>upd("description", e.target.value)} />
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Precio (centavos)</span>
+              <input type="number" min={0} step={100} value={form.price_cents} onChange={e=>upd("price_cents", e.target.value)} />
+              <span className="text-[10px] text-cream/50">{fmt(Number(form.price_cents)||0)}</span>
+            </label>
+            <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Puntos</span>
+              <input type="number" min={0} value={form.points_earned} onChange={e=>upd("points_earned", e.target.value)} />
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Stock (vacío = ilimitado)</span>
+              <input type="number" min={0} value={form.stock_quantity==null?"":form.stock_quantity} onChange={e=>upd("stock_quantity", e.target.value)} />
+            </label>
+            <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Orden</span>
+              <input type="number" value={form.sort_order} onChange={e=>upd("sort_order", e.target.value)} />
+            </label>
+          </div>
+          <div>
+            <span className="text-[11px] uppercase tracking-widest gold-text">Foto del producto</span>
+            <div className="mt-2 flex gap-3 items-center">
+              {form.image_url && <img src={form.image_url} alt="" style={{width:72,height:72,objectFit:"cover",borderRadius:8}} />}
+              <input type="file" ref={fileRef} accept="image/*" style={{display:"none"}} onChange={e=>handleImage(e.target.files[0])} />
+              <button type="button" onClick={()=>fileRef.current.click()} className="btn-ghost text-xs" style={{padding:".5rem .75rem"}} disabled={uploading}>
+                {uploading?"Subiendo…":form.image_url?"Cambiar foto":"Subir foto"}
+              </button>
+              {form.image_url && <button type="button" onClick={()=>upd("image_url",null)} className="text-xs text-red-300">Quitar</button>}
+            </div>
+          </div>
+          <div className="flex gap-4 pt-1">
+            <label className="flex items-center gap-2 text-xs text-cream/80">
+              <input type="checkbox" checked={!!form.is_available} onChange={e=>upd("is_available", e.target.checked)} /> Disponible
+            </label>
+            <label className="flex items-center gap-2 text-xs text-cream/80">
+              <input type="checkbox" checked={!!form.is_active} onChange={e=>upd("is_active", e.target.checked)} /> Activo
+            </label>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button type="submit" disabled={busy||uploading} className="btn-gold flex-1">{busy?"Guardando…":"Guardar"}</button>
+            <button type="button" onClick={onClose} className="btn-ghost">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const { user, loading: authLoading } = useAuth();
   const { profile, reload } = useProfile(user);
+  const { settings, reload: reloadSettings } = useSettings();
   const cart = useCart();
   const [page, setPage] = useState("menu");
   const [detailId, setDetailId] = useState(null);
   const [toasts, setToasts] = useState([]);
+
+  const brand = useMemo(()=>({
+    name: settings['brand.name'] || "Café Zodíaco",
+    tagline: settings['brand.tagline'] || "Café & Zodiaco",
+    logo_url: settings['brand.logo_url'] || null,
+    color_primary: settings['brand.color_primary'] || "#D6AE55",
+    color_bg: settings['brand.color_bg'] || "#090A0F",
+    color_surface: settings['brand.color_surface'] || "#10182F",
+    color_accent: settings['brand.color_accent'] || "#6E5AA6"
+  }), [settings]);
+
+  useEffect(()=>{ applyTheme(brand); }, [brand]);
 
   function toast(kind, msg) {
     const id = Math.random().toString(36).slice(2);
@@ -863,16 +1155,16 @@ function App() {
 
   return (
     <div className="min-h-screen bg-radial">
-      <Top user={user} onProfile={()=>goTo("profile")} />
+      <Top user={user} onProfile={()=>goTo("profile")} brand={brand} logoUrl={brand.logo_url} />
       <main className="mx-auto w-full max-w-md px-4 pt-4 pb-safe">
-        {page==="menu" && <MenuScreen profile={profile} cart={cart} toast={toast} />}
+        {page==="menu" && <MenuScreen profile={profile} cart={cart} toast={toast} settings={settings} />}
         {page==="cart" && <CartScreen cart={cart} user={user} toast={toast} goTo={goTo} />}
         {page==="orders" && <OrdersScreen user={user} goTo={goTo} detailId={detailId} />}
         {page==="rewards" && <RewardsScreen user={user} profile={profile} toast={toast} />}
         {page==="profile" && <ProfileScreen user={user} profile={profile} onSignOut={signOut} reload={reload} goTo={goTo} />}
-        {page==="admin" && <AdminScreen user={user} profile={profile} toast={toast} goTo={goTo} />}
+        {page==="admin" && <AdminScreen user={user} profile={profile} toast={toast} reloadSettings={reloadSettings} />}
       </main>
-      <Bottom page={page} setPage={(p)=>{ setDetailId(null); setPage(p); }} cartCount={cart.count} role={profile?.role} />
+      <Bottom page={page} setPage={(p)=>{ setDetailId(null); setPage(p); }} cartCount={cart.count} />
       <Toast toasts={toasts} dismiss={dismiss} />
     </div>
   );
