@@ -1,0 +1,884 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#10182F" />
+<title>Café Zodíaco</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%2310182F'/%3E%3Ccircle cx='256' cy='256' r='200' fill='none' stroke='%23D6AE55' stroke-width='8'/%3E%3Cpath d='M168 232h150v70a66 66 0 0 1-66 66h-18a66 66 0 0 1-66-66v-70z' fill='none' stroke='%23F4EBDD' stroke-width='18'/%3E%3C/svg%3E" />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: { extend: {
+      colors: { night:'#10182F', cosmic:'#263A68', gold:'#D6AE55', cream:'#F4EBDD', ink:'#090A0F', astral:'#6E5AA6' },
+      fontFamily: { display:['"Cormorant Garamond"','Georgia','serif'], sans:['Inter','system-ui','sans-serif'] }
+    }}
+  };
+</script>
+<style>
+  body { background:#090A0F; color:#F4EBDD; font-family:Inter,system-ui,sans-serif; overscroll-behavior-y:none; -webkit-tap-highlight-color:transparent; }
+  .bg-radial { background:radial-gradient(120% 90% at 50% 0%, #263A68 0%, #10182F 45%, #090A0F 100%); }
+  .card { background:rgba(16,24,47,.7); border:1px solid rgba(38,58,104,.6); border-radius:1rem; backdrop-filter:blur(4px); }
+  .btn-gold { background:#D6AE55; color:#090A0F; font-weight:600; padding:.75rem 1rem; border-radius:.75rem; }
+  .btn-ghost { border:1px solid #263A68; color:#F4EBDD; font-weight:600; padding:.75rem 1rem; border-radius:.75rem; }
+  input,textarea,select { background:rgba(9,10,15,.6); border:1px solid #263A68; color:#F4EBDD; border-radius:.75rem; padding:.75rem; width:100%; font-size:14px; }
+  input::placeholder,textarea::placeholder { color:rgba(244,235,221,.4); }
+  .fade { animation:fade .25s ease-out both; }
+  @keyframes fade { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:none } }
+  .spin { display:inline-block; width:16px; height:16px; border:2px solid rgba(214,174,85,.3); border-top-color:#D6AE55; border-radius:50%; animation:s 1s linear infinite; vertical-align:middle; }
+  @keyframes s { to { transform:rotate(360deg) } }
+  .pb-safe { padding-bottom:calc(5.5rem + env(safe-area-inset-bottom,0px)); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useCallback } = React;
+const sb = window.supabase.createClient(
+  "https://weoixcfpfgnxwfvluhlo.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indlb2l4Y2ZwZmdueHdmdmx1aGxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1NzEwOTYsImV4cCI6MjEwNzE0NzA5Nn0.a7pXkHSeVZcx9MAyTdIMF7yf0m0kda7I_rLHqEgvC80"
+);
+
+const cx = (...xs) => xs.filter(Boolean).join(" ");
+const fmt = (c) => new Intl.NumberFormat("es-AR",{style:"currency",currency:"ARS",maximumFractionDigits:0}).format((c||0)/100);
+const fmtDate = (iso) => new Intl.DateTimeFormat("es-AR",{dateStyle:"medium",timeStyle:"short"}).format(new Date(iso));
+
+const SIGNS = {
+  aries:{el:"fuego",t:"Impulso que abre caminos.",c:"Tu energía empuja al primer sorbo."},
+  tauro:{el:"tierra",t:"Lo que se saborea, se recuerda.",c:"El placer de lo hecho a mano te ancla."},
+  geminis:{el:"aire",t:"Dos ideas, un mismo instante.",c:"Tu mente ligera encuentra la nota precisa."},
+  cancer:{el:"agua",t:"El hogar también es un sabor.",c:"Tu refugio de hoy cabe en una taza."},
+  leo:{el:"fuego",t:"Brillar es tu forma de respirar.",c:"Elegí lo que te enciende."},
+  virgo:{el:"tierra",t:"El detalle es tu superpoder.",c:"Tu cuidado se nota en cada elección."},
+  libra:{el:"aire",t:"En el equilibrio, tu belleza.",c:"La armonía pasa por el paladar."},
+  escorpio:{el:"agua",t:"Transformar es tu naturaleza.",c:"Buscás la intensidad que otros esquivan."},
+  sagitario:{el:"fuego",t:"Siempre hay otra frontera.",c:"Tu curiosidad marca el rumbo."},
+  capricornio:{el:"tierra",t:"Construís con paciencia de piedra.",c:"Cada paso tuyo pesa y sostiene."},
+  acuario:{el:"aire",t:"Ves donde otros no miran.",c:"Tu originalidad se sirve distinto."},
+  piscis:{el:"agua",t:"Soñás con los ojos abiertos.",c:"La intuición es tu mejor ingrediente."}
+};
+const SIGN_LABEL = {aries:"Aries",tauro:"Tauro",geminis:"Géminis",cancer:"Cáncer",leo:"Leo",virgo:"Virgo",libra:"Libra",escorpio:"Escorpio",sagitario:"Sagitario",capricornio:"Capricornio",acuario:"Acuario",piscis:"Piscis"};
+
+function zodiacMsg(sign, cartNames) {
+  if (!sign) return { title:"Qué dicen hoy las estrellas", body:"Iniciá sesión y cargá tu fecha de nacimiento para leer tu mensaje del día." };
+  const r = SIGNS[sign]; const s = SIGN_LABEL[sign];
+  if (!cartNames || cartNames.length===0) return { title:s+" hoy", body:r.t };
+  return { title:s+" · lectura de tu pedido", body:s+" de "+r.el+": "+r.t+" Tu pedido vibra con "+cartNames.slice(0,3).join(", ")+". "+r.c };
+}
+
+function useAuth() {
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    sb.auth.getSession().then(({data}) => { setSession(data.session||null); setLoading(false); });
+    const {data:{subscription}} = sb.auth.onAuthStateChange((_,s)=>setSession(s));
+    return ()=>subscription.unsubscribe();
+  }, []);
+  return { session, user: session?.user||null, loading };
+}
+
+function useProfile(user) {
+  const [profile, setProfile] = useState(null);
+  const load = useCallback(async ()=>{
+    if (!user) { setProfile(null); return; }
+    const {data} = await sb.from("profiles").select("*").eq("id",user.id).maybeSingle();
+    setProfile(data||null);
+  }, [user]);
+  useEffect(()=>{ load(); },[load]);
+  return { profile, reload: load };
+}
+
+function useCart() {
+  const [lines, setLines] = useState(()=>{
+    try { return JSON.parse(localStorage.getItem("cz-cart")||"[]"); } catch { return []; }
+  });
+  useEffect(()=>{ localStorage.setItem("cz-cart", JSON.stringify(lines)); }, [lines]);
+  const add = (item) => {
+    setLines(prev => {
+      const key = item.kind+":"+item.id;
+      const i = prev.findIndex(l=>l.key===key);
+      if (i>=0) { const c=[...prev]; c[i]={...c[i], quantity:c[i].quantity+(item.quantity||1)}; return c; }
+      return [...prev, {...item, key, quantity: item.quantity||1}];
+    });
+  };
+  const remove = (key) => setLines(prev=>prev.filter(l=>l.key!==key));
+  const setQty = (key,q) => setLines(prev=>prev.map(l=>l.key===key?{...l,quantity:Math.max(1,q)}:l));
+  const setNotes = (key,n) => setLines(prev=>prev.map(l=>l.key===key?{...l,notes:n}:l));
+  const clear = () => setLines([]);
+  const count = lines.reduce((a,l)=>a+l.quantity,0);
+  const subtotal = lines.reduce((a,l)=>a+l.price_cents*l.quantity,0);
+  return { lines, add, remove, setQty, setNotes, clear, count, subtotal };
+}
+
+// ─── COMPONENTES UI ─────────────────────────────────────
+function Spinner({label="Cargando…"}) {
+  return <div className="flex flex-col items-center gap-3 py-12 text-cream/60 text-xs"><span className="spin"></span>{label}</div>;
+}
+function Top({user, onProfile}) {
+  return (
+    <header className="sticky top-0 z-30 border-b border-cosmic/50 bg-ink/85 backdrop-blur-md">
+      <div className="mx-auto flex max-w-md items-center justify-between px-4 py-3">
+        <div className="flex items-center gap-2">
+          <svg width="26" height="26" viewBox="0 0 512 512">
+            <circle cx="256" cy="256" r="200" fill="none" stroke="#D6AE55" strokeWidth="8"/>
+            <path d="M168 232h150v70a66 66 0 0 1-66 66h-18a66 66 0 0 1-66-66v-70z" fill="none" stroke="#F4EBDD" strokeWidth="18"/>
+            <path d="M318 250h22a34 34 0 0 1 0 68h-22" fill="none" stroke="#F4EBDD" strokeWidth="18"/>
+          </svg>
+          <div className="leading-none">
+            <p className="font-display text-lg text-cream">Café Zodíaco</p>
+            <p className="text-[10px] uppercase tracking-[0.18em] text-gold/80">Café &amp; Zodiaco</p>
+          </div>
+        </div>
+        {user
+          ? <button onClick={onProfile} className="text-xs text-gold underline">Mi perfil</button>
+          : <button onClick={onProfile} className="text-xs text-gold underline">Ingresar</button>}
+      </div>
+    </header>
+  );
+}
+function Bottom({page, setPage, cartCount, role}) {
+  const items = [
+    {k:"menu", label:"Menú", ico:"M4 5h11v14H4z"},
+    {k:"cart", label:"Carrito", ico:"M2 3h3l2.4 11.2a2 2 0 0 0 2 1.6h8.2L21 7H6"},
+    {k:"orders", label:"Pedidos", ico:"M5 3h14v18l-7-4-7 4z"},
+    {k:"rewards", label:"Puntos", ico:"M12 3l2.6 5.6 6.1.8-4.5 4.2 1.2 6.1L12 16.8 6.6 19.7l1.2-6.1L3.3 9.4l6.1-.8z"},
+    {k:"profile", label:"Perfil", ico:"M12 8a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-8 13a8 8 0 0 1 16 0"}
+  ];
+  return (
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-cosmic/60 bg-night/95 backdrop-blur-md" style={{paddingBottom:"env(safe-area-inset-bottom,0px)"}}>
+      <ul className="mx-auto flex max-w-md items-stretch justify-between px-1">
+        {items.map(it => (
+          <li key={it.k} className="flex-1">
+            <button onClick={()=>setPage(it.k)} className={cx("flex w-full flex-col items-center gap-1 rounded-lg px-1 py-2.5 text-[10px] font-medium transition", page===it.k?"text-gold":"text-cream/55")}>
+              <span className="relative">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={it.ico}/></svg>
+                {it.k==="cart" && cartCount>0 && <span className="absolute -right-2 -top-1 grid h-4 min-w-4 place-items-center rounded-full bg-gold px-1 text-[9px] font-bold text-ink">{cartCount>99?"99+":cartCount}</span>}
+              </span>
+              <span>{it.label}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+function Toast({toasts, dismiss}) {
+  if (!toasts.length) return null;
+  return (
+    <div className="pointer-events-none fixed inset-x-0 z-50 mx-auto flex max-w-md flex-col gap-2 px-4" style={{bottom:"calc(5.5rem + env(safe-area-inset-bottom,0px))"}}>
+      {toasts.map(t=>(
+        <button key={t.id} onClick={()=>dismiss(t.id)} className={cx("pointer-events-auto rounded-xl border px-4 py-3 text-left text-sm backdrop-blur shadow-xl",
+          t.kind==="success" && "border-emerald-500/40 bg-emerald-500/15 text-emerald-100",
+          t.kind==="error" && "border-red-500/40 bg-red-500/15 text-red-100",
+          t.kind==="info" && "border-astral/60 bg-astral/15 text-cream")}>
+          {t.msg}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── PANTALLAS ──────────────────────────────────────────
+function LoginScreen({ onDone }) {
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [stage, setStage] = useState("email");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  async function send(e) {
+    e.preventDefault(); setBusy(true); setErr(null);
+    const { error } = await sb.auth.signInWithOtp({ email: email.trim().toLowerCase(), options:{ shouldCreateUser:true } });
+    setBusy(false);
+    if (error) setErr(error.message); else setStage("otp");
+  }
+  async function verify(e) {
+    e.preventDefault(); setBusy(true); setErr(null);
+    const { error } = await sb.auth.verifyOtp({ email: email.trim().toLowerCase(), token: code.trim(), type:"email" });
+    setBusy(false);
+    if (error) setErr(error.message); else onDone && onDone();
+  }
+  return (
+    <div className="min-h-screen bg-radial px-6 py-12 flex items-center justify-center">
+      <div className="mx-auto w-full max-w-sm space-y-6 fade">
+        <div className="text-center">
+          <h1 className="font-display text-4xl text-cream">Café Zodíaco</h1>
+          <p className="mt-1 text-xs uppercase tracking-[0.2em] text-gold/80">Ingresá con tu email</p>
+        </div>
+        <div className="card p-5 space-y-4">
+          {stage==="email" ? (
+            <form onSubmit={send} className="space-y-4">
+              <label className="block space-y-1"><span className="text-xs text-cream/70">Email</span>
+                <input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@email.com" />
+              </label>
+              <button disabled={busy} className="btn-gold w-full">{busy?"Enviando…":"Enviar código"}</button>
+              <p className="text-[11px] text-cream/50">Te enviamos un código de 6 dígitos.</p>
+            </form>
+          ) : (
+            <form onSubmit={verify} className="space-y-4">
+              <label className="block space-y-1">
+                <span className="text-xs text-cream/70">Código enviado a <b className="text-gold">{email}</b></span>
+                <input inputMode="numeric" maxLength={6} value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,""))} placeholder="••••••" style={{textAlign:"center",fontSize:24,letterSpacing:8}} />
+              </label>
+              <button disabled={busy || code.length!==6} className="btn-gold w-full">{busy?"Verificando…":"Ingresar"}</button>
+              <button type="button" onClick={()=>{setStage("email");setCode("");setErr(null);}} className="btn-ghost w-full">Cambiar email</button>
+            </form>
+          )}
+          {err && <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">{err}</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MenuScreen({ profile, cart, toast }) {
+  const [products, setProducts] = useState([]);
+  const [cats, setCats] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("__all__");
+
+  useEffect(()=>{ (async ()=>{
+    const [p, c] = await Promise.all([
+      sb.from("products").select("*").eq("is_active",true).order("sort_order"),
+      sb.from("categories").select("*").eq("is_active",true).order("sort_order")
+    ]);
+    setProducts(p.data||[]); setCats(c.data||[]); setLoading(false);
+  })(); }, []);
+
+  const visible = useMemo(()=>{
+    if (tab==="__all__") return products;
+    return products.filter(p=>p.category_id===tab);
+  }, [products, tab]);
+
+  const msg = useMemo(()=>zodiacMsg(profile?.zodiac_sign, cart.lines.map(l=>l.name)), [profile, cart.lines]);
+
+  function add(p) {
+    cart.add({ kind:"product", id:p.id, name:p.name, price_cents:p.price_cents, points:p.points_earned, image_url:p.image_url });
+    toast("success", "Agregado: "+p.name);
+  }
+
+  if (loading) return <Spinner/>;
+
+  return (
+    <div className="space-y-4 fade">
+      <section className="card relative overflow-hidden border-astral/40 p-4">
+        <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-gold/10 blur-2xl"></div>
+        <p className="text-[10px] uppercase tracking-[0.24em] text-gold/80">✦ Qué dicen hoy las estrellas</p>
+        <h2 className="mt-1 font-display text-lg text-cream">{msg.title}</h2>
+        <p className="mt-1 text-sm leading-relaxed text-cream/80">{msg.body}</p>
+      </section>
+
+      <header className="space-y-1">
+        <h1 className="font-display text-2xl text-cream">Nuestro menú</h1>
+        <p className="text-xs text-cream/60">Café de especialidad, mensajes del zodiaco y puntos en cada pedido.</p>
+      </header>
+
+      <nav className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
+        <button onClick={()=>setTab("__all__")} className={cx("shrink-0 rounded-full border px-4 py-1.5 text-xs font-medium", tab==="__all__"?"border-gold bg-gold/15 text-gold":"border-cosmic/70 bg-night/40 text-cream/70")}>Todos</button>
+        {cats.map(c=>(
+          <button key={c.id} onClick={()=>setTab(c.id)} className={cx("shrink-0 rounded-full border px-4 py-1.5 text-xs font-medium", tab===c.id?"border-gold bg-gold/15 text-gold":"border-cosmic/70 bg-night/40 text-cream/70")}>{c.name}</button>
+        ))}
+      </nav>
+
+      {visible.length===0 && <div className="card p-6 text-center text-sm text-cream/60">No hay productos en esta categoría.</div>}
+
+      <div className="space-y-3">
+        {visible.map(p=>(
+          <article key={p.id} className={cx("card flex gap-3 p-3", !p.is_available && "opacity-55")}>
+            <div className="grid shrink-0 place-items-center rounded-xl border border-cosmic/60 bg-gradient-to-br from-cosmic/70 via-night to-ink text-lg font-semibold text-gold/90" style={{width:72,height:72}}>{(p.name[0]||"·").toUpperCase()}</div>
+            <div className="flex min-w-0 flex-1 flex-col justify-between">
+              <div className="min-w-0">
+                <h3 className="truncate font-display text-lg leading-tight text-cream">{p.name}</h3>
+                {p.description && <p className="mt-0.5 line-clamp-2 text-xs text-cream/60">{p.description}</p>}
+              </div>
+              <div className="mt-2 flex items-end justify-between gap-2">
+                <div className="leading-tight">
+                  <p className="font-semibold text-gold">{fmt(p.price_cents)}</p>
+                  {p.points_earned>0 && <p className="text-[10px] uppercase tracking-widest text-astral/90">+{p.points_earned} pts</p>}
+                </div>
+                <button disabled={!p.is_available} onClick={()=>add(p)} className="btn-gold text-xs" style={{padding:".5rem .75rem"}}>{p.is_available?"Agregar":"Sin stock"}</button>
+              </div>
+            </div>
+          </article>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CartScreen({ cart, user, toast, goTo }) {
+  const [orderType, setOrderType] = useState("pickup");
+  const [addr, setAddr] = useState({street:"",number:"",city:"",notes:""});
+  const [notes, setNotes] = useState("");
+  const [preview, setPreview] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(()=>{
+    if (cart.lines.length===0) { setPreview(null); return; }
+    let cancelled = false;
+    const items = cart.lines.map(l=>({
+      ...(l.kind==="product"?{product_id:l.id}:{combo_id:l.id}),
+      quantity:l.quantity, ...(l.notes?{notes:l.notes}:{})
+    }));
+    sb.rpc("preview_cart",{p_order_type:orderType, p_items:items}).then(({data,error})=>{
+      if (cancelled) return;
+      if (error) { setPreview({err:error.message}); return; }
+      setPreview(data);
+    });
+    return ()=>{ cancelled=true; };
+  }, [cart.lines, orderType]);
+
+  const isEmpty = cart.lines.length===0;
+  const belowMin = preview?.below_minimum===true;
+  const addrOk = orderType==="pickup" || (addr.street.trim() && addr.number.trim() && addr.city.trim());
+  const disabled = isEmpty || !user || !preview || preview.err || belowMin || !addrOk || busy;
+
+  async function confirm() {
+    if (disabled) return;
+    setBusy(true);
+    const items = cart.lines.map(l=>({
+      ...(l.kind==="product"?{product_id:l.id}:{combo_id:l.id}),
+      quantity:l.quantity, ...(l.notes?{notes:l.notes}:{})
+    }));
+    const { data, error } = await sb.rpc("create_order",{
+      p_order_type: orderType,
+      p_items: items,
+      p_customer_notes: notes.trim()||null,
+      p_delivery_address: orderType==="delivery" ? addr : null,
+      p_promotion_code: null
+    });
+    setBusy(false);
+    if (error) { toast("error", error.message); return; }
+    cart.clear();
+    toast("success", "Pedido confirmado");
+    goTo("orders", data);
+  }
+
+  if (isEmpty) return (
+    <div className="card p-8 text-center space-y-3 fade">
+      <p className="text-sm text-cream/70">Todavía no agregaste nada.</p>
+      <button onClick={()=>goTo("menu")} className="btn-gold">Ver menú</button>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4 fade">
+      <header className="flex items-center justify-between">
+        <h1 className="font-display text-2xl text-cream">Tu pedido</h1>
+        <button onClick={cart.clear} className="text-[11px] text-cream/50 underline">Vaciar</button>
+      </header>
+
+      <div className="grid grid-cols-2 gap-2">
+        <button onClick={()=>setOrderType("pickup")} className={cx("rounded-xl border px-3 py-3 text-sm font-medium", orderType==="pickup"?"border-gold bg-gold/15 text-gold":"border-cosmic bg-night/40 text-cream/70")}>Retiro en local</button>
+        <button onClick={()=>setOrderType("delivery")} className={cx("rounded-xl border px-3 py-3 text-sm font-medium", orderType==="delivery"?"border-gold bg-gold/15 text-gold":"border-cosmic bg-night/40 text-cream/70")}>Delivery</button>
+      </div>
+
+      <div className="space-y-3">
+        {cart.lines.map(l=>(
+          <article key={l.key} className="card p-3 space-y-3">
+            <div className="flex justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="truncate font-display text-base text-cream">{l.name}</h3>
+                <p className="text-[11px] text-cream/50">{fmt(l.price_cents)} · {l.kind==="combo"?"Combo":"Producto"}</p>
+              </div>
+              <button onClick={()=>cart.remove(l.key)} className="text-xs text-cream/40 hover:text-red-300">Quitar</button>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="inline-flex items-center rounded-xl border border-cosmic bg-ink/60">
+                <button onClick={()=>cart.setQty(l.key, l.quantity-1)} disabled={l.quantity<=1} className="grid h-9 w-9 place-items-center text-lg disabled:opacity-30">−</button>
+                <span className="w-8 text-center text-sm font-semibold">{l.quantity}</span>
+                <button onClick={()=>cart.setQty(l.key, l.quantity+1)} className="grid h-9 w-9 place-items-center text-lg">+</button>
+              </div>
+              <p className="text-sm font-semibold text-gold">{fmt(l.price_cents*l.quantity)}</p>
+            </div>
+            <textarea rows={2} maxLength={200} placeholder="Nota: sin azúcar, leche descremada…" value={l.notes||""} onChange={e=>cart.setNotes(l.key,e.target.value)} className="text-xs" />
+          </article>
+        ))}
+      </div>
+
+      {orderType==="delivery" && (
+        <div className="card p-4 space-y-3">
+          <h2 className="font-display text-base text-cream">Dirección de entrega</h2>
+          <div className="grid grid-cols-3 gap-2">
+            <input className="col-span-2" placeholder="Calle" value={addr.street} onChange={e=>setAddr({...addr, street:e.target.value})} />
+            <input placeholder="N°" value={addr.number} onChange={e=>setAddr({...addr, number:e.target.value})} />
+          </div>
+          <input placeholder="Ciudad / Barrio" value={addr.city} onChange={e=>setAddr({...addr, city:e.target.value})} />
+          <input placeholder="Referencias (opcional)" value={addr.notes} onChange={e=>setAddr({...addr, notes:e.target.value})} />
+        </div>
+      )}
+
+      <div className="card p-4 space-y-2">
+        {!preview && <p className="text-xs text-cream/50">Calculando totales…</p>}
+        {preview?.err && <p className="text-xs text-red-300">{preview.err}</p>}
+        {preview && !preview.err && (
+          <>
+            <div className="flex justify-between text-sm"><span className="text-cream/60">Subtotal</span><span>{fmt(preview.subtotal_cents)}</span></div>
+            {orderType==="delivery" && <div className="flex justify-between text-sm"><span className="text-cream/60">Envío</span><span>{fmt(preview.delivery_fee_cents)}</span></div>}
+            <div className="my-1 h-px bg-cosmic/60"></div>
+            <div className="flex justify-between text-sm font-semibold"><span className="text-cream">Total</span><span className="text-gold">{fmt(preview.total_cents)}</span></div>
+            {preview.points_earned>0 && <p className="text-[11px] text-astral/90 pt-1">Vas a sumar <b>+{preview.points_earned} pts</b>.</p>}
+            {preview.below_minimum && <p className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-200">Mínimo para delivery: {fmt(preview.delivery_min_cents)}.</p>}
+          </>
+        )}
+      </div>
+
+      <div className="card p-4">
+        <label className="block space-y-1">
+          <span className="text-[11px] uppercase tracking-widest text-gold/80">Comentarios (opcional)</span>
+          <textarea rows={2} maxLength={300} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Ej: timbre 3B" />
+        </label>
+      </div>
+
+      <div className="space-y-2 pb-2">
+        <button onClick={confirm} disabled={disabled} className="btn-gold w-full" style={{opacity:disabled?.5:1}}>
+          {busy?"Confirmando…":!user?"Iniciá sesión para continuar":belowMin?"Monto mínimo no alcanzado":(orderType==="delivery"&&!addrOk)?"Completá la dirección":"Confirmar pedido"}
+        </button>
+        {!user && <p className="text-center text-[11px] text-cream/50">Necesitás una cuenta para hacer pedidos.</p>}
+      </div>
+    </div>
+  );
+}
+
+const STATUS_LABEL = {pending:"Pendiente",confirmed:"Confirmado",preparing:"Preparando",ready:"Listo",on_the_way:"En camino",delivered:"Entregado",completed:"Completado",cancelled:"Cancelado",rejected:"Rechazado"};
+const STATUS_TONE = {pending:"border-cream/30 bg-cream/10 text-cream/80",confirmed:"border-astral/60 bg-astral/15 text-astral",preparing:"border-amber-500/40 bg-amber-500/15 text-amber-200",ready:"border-emerald-500/40 bg-emerald-500/15 text-emerald-200",on_the_way:"border-sky-500/40 bg-sky-500/15 text-sky-200",delivered:"border-emerald-500/40 bg-emerald-500/15 text-emerald-200",completed:"border-emerald-500/40 bg-emerald-500/15 text-emerald-200",cancelled:"border-red-500/40 bg-red-500/15 text-red-200",rejected:"border-red-500/40 bg-red-500/15 text-red-200"};
+
+function OrdersScreen({ user, goTo, detailId }) {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [detail, setDetail] = useState(null);
+  const [items, setItems] = useState([]);
+
+  useEffect(()=>{
+    if (!user) { setLoading(false); return; }
+    if (detailId) {
+      Promise.all([
+        sb.from("orders").select("*").eq("id",detailId).single(),
+        sb.from("order_items").select("*").eq("order_id",detailId).order("created_at")
+      ]).then(([o,i])=>{ setDetail(o.data); setItems(i.data||[]); setLoading(false); });
+    } else {
+      sb.from("orders").select("id,order_number,status,order_type,total_cents,points_earned,created_at").order("created_at",{ascending:false}).limit(50)
+        .then(({data})=>{ setOrders(data||[]); setLoading(false); });
+    }
+  }, [user, detailId]);
+
+  // polling detail
+  useEffect(()=>{
+    if (!detailId) return;
+    const t = setInterval(()=>{
+      sb.from("orders").select("*").eq("id",detailId).single().then(({data})=>{
+        if (data) setDetail(data);
+        if (data && ["completed","cancelled","rejected"].includes(data.status)) clearInterval(t);
+      });
+    }, 20000);
+    return ()=>clearInterval(t);
+  }, [detailId]);
+
+  if (!user) return <div className="card p-6 text-center text-sm text-cream/70">Ingresá para ver tus pedidos.</div>;
+  if (loading) return <Spinner/>;
+
+  if (detailId && detail) {
+    const steps = detail.order_type==="delivery" ? ["pending","confirmed","preparing","ready","on_the_way","delivered","completed"] : ["pending","confirmed","preparing","ready","completed"];
+    const idx = ["cancelled","rejected"].includes(detail.status) ? -1 : steps.indexOf(detail.status);
+    return (
+      <div className="space-y-4 fade">
+        <button onClick={()=>goTo("orders")} className="text-[11px] text-cream/50">← Volver</button>
+        <header className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="font-display text-2xl text-cream">Pedido #{detail.order_number}</h1>
+            <p className="text-[11px] text-cream/55">{detail.order_type==="delivery"?"Delivery":"Retiro en local"} · {fmtDate(detail.created_at)}</p>
+          </div>
+          <span className={cx("rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-widest", STATUS_TONE[detail.status])}>{STATUS_LABEL[detail.status]}</span>
+        </header>
+
+        {idx===-1 ? (
+          <div className="card p-4 border-red-500/40 bg-red-500/10 text-red-100 text-sm">Pedido {STATUS_LABEL[detail.status].toLowerCase()}</div>
+        ) : (
+          <ol className="card p-4">
+            {steps.map((s,i)=>{
+              const done = i<idx, cur = i===idx;
+              return (
+                <li key={s} className="flex gap-3">
+                  <div className="flex flex-col items-center">
+                    <span className={cx("grid h-7 w-7 place-items-center rounded-full border-2 text-[11px] font-bold",
+                      done && "border-emerald-400/70 bg-emerald-400/20 text-emerald-200",
+                      cur && "border-gold bg-gold text-ink",
+                      !done && !cur && "border-cosmic bg-night/60 text-cream/40")}>{done?"✓":i+1}</span>
+                    {i<steps.length-1 && <span className={cx("my-1 w-px flex-1", done?"bg-emerald-400/40":"bg-cosmic/60")} style={{minHeight:"1.5rem"}}></span>}
+                  </div>
+                  <div className="pb-4">
+                    <p className={cx("text-sm leading-tight", cur&&"font-semibold text-gold", done&&"text-cream/85", !done&&!cur&&"text-cream/45")}>{STATUS_LABEL[s]}</p>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+
+        <div className="card divide-y divide-cosmic/60">
+          <div className="px-4 py-3"><p className="text-[11px] uppercase tracking-widest text-gold/80">Ítems</p></div>
+          {items.map(it=>(
+            <div key={it.id} className="flex items-start justify-between gap-3 px-4 py-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm text-cream">{it.quantity}× {it.product_name}</p>
+                {it.notes && <p className="text-[11px] text-cream/50">Nota: {it.notes}</p>}
+              </div>
+              <span className="shrink-0 text-sm text-cream/85">{fmt(it.line_total_cents)}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="card p-4 space-y-2 text-sm">
+          <div className="flex justify-between"><span className="text-cream/60">Subtotal</span><span>{fmt(detail.subtotal_cents)}</span></div>
+          {detail.order_type==="delivery" && <div className="flex justify-between"><span className="text-cream/60">Envío</span><span>{fmt(detail.delivery_fee_cents)}</span></div>}
+          <div className="my-1 h-px bg-cosmic/60"></div>
+          <div className="flex justify-between font-semibold"><span className="text-cream">Total</span><span className="text-gold">{fmt(detail.total_cents)}</span></div>
+        </div>
+
+        {detail.status==="pending" && (
+          <button onClick={async ()=>{
+            const { error } = await sb.rpc("cancel_my_order",{p_order_id:detail.id});
+            if (error) alert("No se pudo cancelar: "+error.message);
+            else { alert("Pedido cancelado"); goTo("orders"); }
+          }} className="btn-ghost w-full">Cancelar pedido</button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4 fade">
+      <h1 className="font-display text-2xl text-cream">Tus pedidos</h1>
+      {orders.length===0 && <div className="card p-8 text-center text-sm text-cream/70">Todavía no hiciste pedidos.</div>}
+      <ul className="space-y-3">
+        {orders.map(o=>(
+          <li key={o.id}>
+            <button onClick={()=>goTo("orders", o.id)} className="card block w-full p-4 text-left">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-display text-base text-cream">Pedido #{o.order_number}</p>
+                  <p className="text-[11px] text-cream/55">{o.order_type==="delivery"?"Delivery":"Retiro en local"} · {fmtDate(o.created_at)}</p>
+                </div>
+                <span className={cx("rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest", STATUS_TONE[o.status])}>{STATUS_LABEL[o.status]}</span>
+              </div>
+              <div className="mt-3 flex justify-end"><span className="font-semibold text-gold">{fmt(o.total_cents)}</span></div>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function RewardsScreen({ user, profile, toast }) {
+  const [rewards, setRewards] = useState([]);
+  const [txs, setTxs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
+
+  async function load() {
+    const [r,t] = await Promise.all([
+      sb.from("rewards").select("*").eq("is_active",true).order("sort_order"),
+      user ? sb.from("points_transactions").select("*").order("created_at",{ascending:false}).limit(20) : Promise.resolve({data:[]})
+    ]);
+    setRewards(r.data||[]); setTxs(t.data||[]); setLoading(false);
+  }
+  useEffect(()=>{ load(); }, [user]);
+
+  if (!user) return <div className="card p-6 text-center text-sm text-cream/70">Ingresá para ver tus puntos.</div>;
+  if (loading) return <Spinner/>;
+
+  const balance = profile?.points_balance ?? 0;
+
+  async function redeem(reward) {
+    setBusyId(reward.id);
+    const { error } = await sb.rpc("redeem_reward", { p_reward_id: reward.id });
+    setBusyId(null);
+    if (error) { toast("error", error.message); return; }
+    toast("success", "Canjeaste: "+reward.name);
+    load();
+  }
+
+  return (
+    <div className="space-y-5 fade">
+      <header className="card relative overflow-hidden border-gold/40 p-5">
+        <div className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-gold/15 blur-3xl"></div>
+        <p className="text-[10px] uppercase tracking-[0.28em] text-gold/80">Tus puntos</p>
+        <p className="mt-1 font-display text-5xl leading-none text-cream">{balance}</p>
+      </header>
+
+      <section className="space-y-3">
+        <h2 className="text-[11px] font-medium uppercase tracking-[0.18em] text-gold/80">Recompensas</h2>
+        {rewards.map(r=>{
+          const ok = balance >= r.cost_points;
+          return (
+            <article key={r.id} className={cx("card flex items-center gap-4 p-4", !ok && "opacity-55")}>
+              <div className="grid h-14 w-14 place-items-center rounded-xl border border-gold/40 bg-gold/10 text-xl text-gold">★</div>
+              <div className="min-w-0 flex-1">
+                <h3 className="truncate font-display text-base text-cream">{r.name}</h3>
+                {r.description && <p className="text-[11px] text-cream/60">{r.description}</p>}
+                <p className="mt-1 text-xs text-gold">{r.cost_points} pts</p>
+              </div>
+              <button disabled={!ok || busyId===r.id} onClick={()=>redeem(r)} className={cx(ok?"btn-gold":"btn-ghost","text-xs")} style={{padding:".5rem .75rem"}}>
+                {busyId===r.id?"…":ok?"Canjear":"Bloqueado"}
+              </button>
+            </article>
+          );
+        })}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-[11px] font-medium uppercase tracking-[0.18em] text-astral/90">Movimientos</h2>
+        {txs.length===0 && <div className="card p-4 text-sm text-cream/60">Sin movimientos.</div>}
+        {txs.length>0 && (
+          <ul className="card divide-y divide-cosmic/60">
+            {txs.map(t=>(
+              <li key={t.id} className="flex items-center justify-between px-4 py-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm text-cream">{t.reason}</p>
+                  <p className="text-[11px] text-cream/50">{fmtDate(t.created_at)}</p>
+                </div>
+                <span className={cx("shrink-0 font-semibold", t.delta>0?"text-emerald-300":"text-red-300")}>{t.delta>0?"+":""}{t.delta} pts</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function ProfileScreen({ user, profile, onSignOut, reload, goTo }) {
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  useEffect(()=>{
+    if (!profile) return;
+    setFullName(profile.full_name||""); setPhone(profile.phone||""); setBirthDate(profile.birth_date||"");
+  }, [profile]);
+
+  if (!user) return <LoginScreen/>;
+
+  async function save(e) {
+    e.preventDefault(); setBusy(true); setMsg(null);
+    const { error } = await sb.rpc("update_my_profile", {
+      p_full_name: fullName.trim()||null, p_phone: phone.trim()||null, p_birth_date: birthDate||null
+    });
+    setBusy(false);
+    if (error) setMsg({kind:"err",text:error.message});
+    else { setMsg({kind:"ok",text:"Perfil actualizado."}); reload(); }
+  }
+
+  return (
+    <div className="space-y-5 fade">
+      <header className="flex items-center gap-4">
+        <div className="grid h-14 w-14 place-items-center rounded-full border border-cosmic bg-night/60 text-xl text-gold">
+          {(profile?.full_name?.[0]||user.email[0]||"·").toUpperCase()}
+        </div>
+        <div className="min-w-0">
+          <h1 className="truncate font-display text-2xl text-cream">{profile?.full_name||"Sin nombre"}</h1>
+          <p className="truncate text-xs text-cream/60">{user.email}</p>
+        </div>
+      </header>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="card p-4"><p className="text-[11px] uppercase tracking-widest text-gold/80">Puntos</p><p className="font-display text-3xl text-cream">{profile?.points_balance??0}</p></div>
+        <div className="card p-4"><p className="text-[11px] uppercase tracking-widest text-astral/90">Signo</p><p className="font-display text-2xl text-cream">{profile?.zodiac_sign?SIGN_LABEL[profile.zodiac_sign]:"—"}</p></div>
+      </div>
+
+      <form onSubmit={save} className="card p-5 space-y-4">
+        <h2 className="font-display text-lg text-cream">Datos personales</h2>
+        <label className="block space-y-1"><span className="text-xs text-cream/70">Nombre completo</span>
+          <input value={fullName} onChange={e=>setFullName(e.target.value)} placeholder="Ej. Ana Pérez" />
+        </label>
+        <label className="block space-y-1"><span className="text-xs text-cream/70">Teléfono</span>
+          <input value={phone} onChange={e=>setPhone(e.target.value)} placeholder="+54 11 1234-5678" />
+        </label>
+        <label className="block space-y-1"><span className="text-xs text-cream/70">Fecha de nacimiento</span>
+          <input type="date" value={birthDate} onChange={e=>setBirthDate(e.target.value)} />
+          <span className="text-[11px] text-cream/50">El signo se calcula en el servidor.</span>
+        </label>
+        <div className="flex gap-3">
+          <button type="submit" disabled={busy} className="btn-gold flex-1">{busy?"Guardando…":"Guardar"}</button>
+          <button type="button" onClick={onSignOut} className="btn-ghost">Salir</button>
+        </div>
+        {msg && <p className={cx("rounded-lg px-3 py-2 text-xs", msg.kind==="ok"?"border border-emerald-500/30 bg-emerald-500/10 text-emerald-200":"border border-red-500/30 bg-red-500/10 text-red-300")}>{msg.text}</p>}
+      </form>
+
+      {profile && profile.role!=="customer" && (
+        <button onClick={()=>goTo("admin")} className="btn-ghost w-full">Abrir panel de administración</button>
+      )}
+    </div>
+  );
+}
+
+function AdminScreen({ user, profile, toast, goTo }) {
+  const [tab, setTab] = useState("orders");
+  const [orders, setOrders] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [includeTerm, setIncludeTerm] = useState(false);
+
+  async function load() {
+    setLoading(true);
+    if (tab==="orders") {
+      let q = sb.from("orders").select("*").order("created_at",{ascending:false}).limit(80);
+      if (!includeTerm) q = q.in("status",["pending","confirmed","preparing","ready","on_the_way"]);
+      const { data } = await q;
+      setOrders(data||[]);
+    } else if (tab==="products") {
+      const { data } = await sb.from("products").select("*").order("sort_order");
+      setProducts(data||[]);
+    }
+    setLoading(false);
+  }
+  useEffect(()=>{ load(); }, [tab, includeTerm]);
+
+  if (!profile || profile.role==="customer") return <div className="card p-6 text-center text-sm text-cream/70">No tenés permisos.</div>;
+
+  async function changeStatus(orderId, status) {
+    const { error } = await sb.rpc("admin_update_order_status",{ p_order_id:orderId, p_status:status });
+    if (error) toast("error", error.message); else { toast("success","Estado: "+status); load(); }
+  }
+
+  async function toggleProduct(p, field) {
+    const upd = {}; upd[field] = !p[field];
+    const { error } = await sb.from("products").update(upd).eq("id",p.id);
+    if (error) toast("error", error.message); else load();
+  }
+
+  async function updatePrice(p, cents) {
+    const { error } = await sb.from("products").update({ price_cents: cents }).eq("id", p.id);
+    if (error) toast("error", error.message); else { toast("success","Precio actualizado"); load(); }
+  }
+
+  return (
+    <div className="space-y-4 fade">
+      <header className="space-y-1">
+        <p className="text-[10px] uppercase tracking-[0.28em] text-gold/80">Panel</p>
+        <h1 className="font-display text-2xl text-cream">Operación</h1>
+      </header>
+
+      <nav className="flex gap-2 overflow-x-auto -mx-4 px-4 no-scrollbar">
+        {[{k:"orders",l:"Pedidos"},{k:"products",l:"Productos"}].map(t=>(
+          <button key={t.k} onClick={()=>setTab(t.k)} className={cx("shrink-0 rounded-full border px-4 py-1.5 text-xs font-medium", tab===t.k?"border-gold bg-gold/15 text-gold":"border-cosmic/70 bg-night/40 text-cream/70")}>{t.l}</button>
+        ))}
+      </nav>
+
+      {loading && <Spinner/>}
+
+      {tab==="orders" && !loading && (
+        <>
+          <label className="flex items-center gap-2 text-[11px] text-cream/70">
+            <input type="checkbox" checked={includeTerm} onChange={e=>setIncludeTerm(e.target.checked)} style={{width:"auto"}} /> Incluir finalizados
+          </label>
+          {orders.length===0 && <div className="card p-5 text-center text-sm text-cream/60">No hay pedidos en curso.</div>}
+          {orders.map(o=>{
+            const flow = o.order_type==="delivery" ? ["pending","confirmed","preparing","ready","on_the_way","delivered","completed"] : ["pending","confirmed","preparing","ready","completed"];
+            const i = flow.indexOf(o.status);
+            const next = i>=0 && i<flow.length-1 ? flow[i+1] : null;
+            return (
+              <article key={o.id} className="card p-4 space-y-2">
+                <div className="flex justify-between gap-3">
+                  <div>
+                    <p className="font-display text-base text-cream">#{o.order_number}</p>
+                    <p className="text-[11px] text-cream/55">{o.order_type==="delivery"?"Delivery":"Retiro"} · {fmtDate(o.created_at)}</p>
+                  </div>
+                  <span className={cx("rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-widest", STATUS_TONE[o.status])}>{STATUS_LABEL[o.status]}</span>
+                </div>
+                <div className="flex justify-between text-sm"><span className="text-cream/60">Total</span><span className="text-gold font-semibold">{fmt(o.total_cents)}</span></div>
+                {o.customer_notes && <p className="text-[11px] text-cream/70">📝 {o.customer_notes}</p>}
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {next && <button onClick={()=>changeStatus(o.id,next)} className="btn-gold text-xs" style={{padding:".4rem .75rem"}}>→ {STATUS_LABEL[next]}</button>}
+                  {o.status!=="cancelled" && !["completed","cancelled","rejected"].includes(o.status) && (
+                    <button onClick={()=>changeStatus(o.id,"cancelled")} className="rounded-xl border border-red-500/50 bg-red-500/15 text-red-200 px-3 py-2 text-xs">Cancelar</button>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </>
+      )}
+
+      {tab==="products" && !loading && (
+        <div className="space-y-3">
+          {products.map(p=>(
+            <article key={p.id} className="card p-4 space-y-2">
+              <div className="flex justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm text-cream">{p.name}</p>
+                  <p className="text-[11px] text-cream/55">{p.is_active?"activo":"inactivo"} · {p.is_available?"disponible":"sin stock"}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input type="number" defaultValue={p.price_cents} onBlur={e=>{ const n=Number(e.target.value); if(n!==p.price_cents) updatePrice(p, n); }} style={{maxWidth:120}} />
+                <span className="text-xs text-cream/60">centavos</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={()=>toggleProduct(p,"is_available")} className="btn-ghost text-xs" style={{padding:".4rem .75rem"}}>{p.is_available?"Marcar sin stock":"Marcar disponible"}</button>
+                <button onClick={()=>toggleProduct(p,"is_active")} className="btn-ghost text-xs" style={{padding:".4rem .75rem"}}>{p.is_active?"Desactivar":"Activar"}</button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── APP ────────────────────────────────────────────────
+function App() {
+  const { user, loading: authLoading } = useAuth();
+  const { profile, reload } = useProfile(user);
+  const cart = useCart();
+  const [page, setPage] = useState("menu");
+  const [detailId, setDetailId] = useState(null);
+  const [toasts, setToasts] = useState([]);
+
+  function toast(kind, msg) {
+    const id = Math.random().toString(36).slice(2);
+    setToasts(t=>[...t, {id,kind,msg}]);
+    setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)), 3500);
+  }
+  function dismiss(id) { setToasts(t=>t.filter(x=>x.id!==id)); }
+  function goTo(p, id) { setPage(p); setDetailId(id||null); window.scrollTo(0,0); }
+
+  async function signOut() { await sb.auth.signOut(); goTo("menu"); }
+
+  if (authLoading) return <div className="min-h-screen grid place-items-center"><div className="spin"></div></div>;
+
+  if (page==="login" || (!user && page==="profile")) {
+    return <><LoginScreen onDone={()=>goTo("menu")}/><Toast toasts={toasts} dismiss={dismiss}/></>;
+  }
+
+  return (
+    <div className="min-h-screen bg-radial">
+      <Top user={user} onProfile={()=>goTo("profile")} />
+      <main className="mx-auto w-full max-w-md px-4 pt-4 pb-safe">
+        {page==="menu" && <MenuScreen profile={profile} cart={cart} toast={toast} />}
+        {page==="cart" && <CartScreen cart={cart} user={user} toast={toast} goTo={goTo} />}
+        {page==="orders" && <OrdersScreen user={user} goTo={goTo} detailId={detailId} />}
+        {page==="rewards" && <RewardsScreen user={user} profile={profile} toast={toast} />}
+        {page==="profile" && <ProfileScreen user={user} profile={profile} onSignOut={signOut} reload={reload} goTo={goTo} />}
+        {page==="admin" && <AdminScreen user={user} profile={profile} toast={toast} goTo={goTo} />}
+      </main>
+      <Bottom page={page} setPage={(p)=>{ setDetailId(null); setPage(p); }} cartCount={cart.count} role={profile?.role} />
+      <Toast toasts={toasts} dismiss={dismiss} />
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
