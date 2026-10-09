@@ -1,0 +1,42 @@
+{
+  "name": "Café Zodíaco",
+  "short_name": "Zodíaco",
+  "description": "Café de especialidad con mensajes del zodiaco y recompensas por puntos",
+  "start_url": "/cafe-zodiaco/",
+  "scope": "/cafe-zodiaco/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#090A0F",
+  "theme_color": "#10182F",
+  "lang": "es-AR",
+  "dir": "ltr",
+  "categories": ["food", "shopping", "lifestyle"],
+  "icons": [
+    {
+      "src": "/cafe-zodiaco/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/cafe-zodiaco/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/cafe-zodiaco/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Ver menú",
+      "short_name": "Menú",
+      "url": "/cafe-zodiaco/",
+      "icons": [{ "src": "/cafe-zodiaco/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
