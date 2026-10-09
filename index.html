@@ -225,50 +225,99 @@ function Toast({toasts, dismiss}) {
 }
 
 function LoginScreen({ onDone }) {
+  const [mode, setMode] = useState("password");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
   const [stage, setStage] = useState("email");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
-  async function send(e) {
+  async function sendOtp(e) {
     e.preventDefault(); setBusy(true); setErr(null);
-    const { error } = await sb.auth.signInWithOtp({ email: email.trim().toLowerCase(), options:{ shouldCreateUser:true, emailRedirectTo: window.location.origin + window.location.pathname } });
+    const { error } = await sb.auth.signInWithOtp({
+      email: email.trim().toLowerCase(),
+      options: { shouldCreateUser: true, emailRedirectTo: window.location.origin + window.location.pathname }
+    });
     setBusy(false);
     if (error) setErr(error.message); else setStage("otp");
   }
-  async function verify(e) {
+  async function verifyOtp(e) {
     e.preventDefault(); setBusy(true); setErr(null);
-    const { error } = await sb.auth.verifyOtp({ email: email.trim().toLowerCase(), token: code.trim(), type:"email" });
+    const { error } = await sb.auth.verifyOtp({ email: email.trim().toLowerCase(), token: code.trim(), type: "email" });
     setBusy(false);
     if (error) setErr(error.message); else onDone && onDone();
   }
+  async function loginPassword(e) {
+    e.preventDefault(); setBusy(true); setErr(null);
+    const { error } = await sb.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password: password
+    });
+    setBusy(false);
+    if (error) setErr(error.message); else onDone && onDone();
+  }
+
   return (
     <div className="min-h-screen bg-radial px-6 py-12 flex items-center justify-center">
       <div className="mx-auto w-full max-w-sm space-y-6 fade">
         <div className="text-center">
           <h1 className="font-display text-4xl text-cream">Café Zodíaco</h1>
-          <p className="mt-1 text-xs uppercase tracking-[0.2em] gold-text">Ingresá con tu email</p>
+          <p className="mt-1 text-xs uppercase tracking-[0.2em] gold-text">Ingresá a tu cuenta</p>
         </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={()=>{setMode("password"); setErr(null);}}
+            className={cx("rounded-xl border px-3 py-2 text-sm font-medium",
+              mode==="password"?"border-gold bg-gold/15 gold-text":"border-cosmic bg-night/40 text-cream/70")}>
+            Contraseña
+          </button>
+          <button onClick={()=>{setMode("otp"); setErr(null); setStage("email");}}
+            className={cx("rounded-xl border px-3 py-2 text-sm font-medium",
+              mode==="otp"?"border-gold bg-gold/15 gold-text":"border-cosmic bg-night/40 text-cream/70")}>
+            Código
+          </button>
+        </div>
+
         <div className="card p-5 space-y-4">
-          {stage==="email" ? (
-            <form onSubmit={send} className="space-y-4">
+          {mode==="password" && (
+            <form onSubmit={loginPassword} className="space-y-4">
+              <label className="block space-y-1"><span className="text-xs text-cream/70">Email</span>
+                <input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@email.com" autoComplete="email" />
+              </label>
+              <label className="block space-y-1"><span className="text-xs text-cream/70">Contraseña</span>
+                <input type="password" required value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
+              </label>
+              <button disabled={busy} className="btn-gold w-full">{busy?"Ingresando…":"Ingresar"}</button>
+              <p className="text-[11px] text-cream/50">
+                ¿Todavía no tenés contraseña? Entrá con <b className="gold-text">Código</b>, y una vez adentro la creás desde Perfil.
+              </p>
+            </form>
+          )}
+
+          {mode==="otp" && stage==="email" && (
+            <form onSubmit={sendOtp} className="space-y-4">
               <label className="block space-y-1"><span className="text-xs text-cream/70">Email</span>
                 <input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@email.com" />
               </label>
               <button disabled={busy} className="btn-gold w-full">{busy?"Enviando…":"Enviar código"}</button>
-              <p className="text-[11px] text-cream/50">Te llega un código de 6 dígitos.</p>
-            </form>
-          ) : (
-            <form onSubmit={verify} className="space-y-4">
-              <label className="block space-y-1">
-                <span className="text-xs text-cream/70">Código enviado a <b className="gold-text">{email}</b></span>
-                <input inputMode="numeric" maxLength={6} value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,""))} placeholder="••••••" style={{textAlign:"center",fontSize:24,letterSpacing:8}} />
-              </label>
-              <button disabled={busy || code.length!==6} className="btn-gold w-full">{busy?"Verificando…":"Ingresar"}</button>
-              <button type="button" onClick={()=>{setStage("email");setCode("");setErr(null);}} className="btn-ghost w-full">Cambiar email</button>
+              <p className="text-[11px] text-cream/50">Te llega un código de 6 dígitos por email.</p>
             </form>
           )}
+
+          {mode==="otp" && stage==="otp" && (
+            <form onSubmit={verifyOtp} className="space-y-4">
+              <label className="block space-y-1">
+                <span className="text-xs text-cream/70">Código enviado a <b className="gold-text">{email}</b></span>
+                <input inputMode="numeric" maxLength={6} value={code}
+                  onChange={e=>setCode(e.target.value.replace(/\D/g,""))} placeholder="••••••"
+                  style={{textAlign:"center",fontSize:24,letterSpacing:8}} />
+              </label>
+              <button disabled={busy || code.length!==6} className="btn-gold w-full">{busy?"Verificando…":"Ingresar"}</button>
+              <button type="button" onClick={()=>{setStage("email");setCode("");setErr(null);}} className="btn-ghost w-full">Atrás</button>
+            </form>
+          )}
+
           {err && <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">{err}</p>}
         </div>
       </div>
@@ -694,6 +743,47 @@ function RewardsScreen({ user, profile, toast }) {
   );
 }
 
+function PasswordSection({ user }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  async function save(e) {
+    e.preventDefault();
+    setMsg(null);
+    if (password.length < 6) { setMsg({kind:"err", text:"Mínimo 6 caracteres."}); return; }
+    if (password !== confirm) { setMsg({kind:"err", text:"Las contraseñas no coinciden."}); return; }
+    setBusy(true);
+    const { error } = await sb.auth.updateUser({ password });
+    setBusy(false);
+    if (error) setMsg({kind:"err", text:error.message});
+    else { setMsg({kind:"ok", text:"Contraseña guardada. La próxima vez podés entrar con ella."}); setPassword(""); setConfirm(""); }
+  }
+
+  return (
+    <form onSubmit={save} className="card p-5 space-y-4">
+      <div>
+        <h2 className="font-display text-lg text-cream">Contraseña</h2>
+        <p className="text-[11px] text-cream/60 mt-1">Creá una contraseña para no depender del código por email cada vez.</p>
+      </div>
+      <label className="block space-y-1"><span className="text-xs text-cream/70">Nueva contraseña</span>
+        <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Mínimo 6 caracteres" autoComplete="new-password" />
+      </label>
+      <label className="block space-y-1"><span className="text-xs text-cream/70">Repetir contraseña</span>
+        <input type="password" value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="Repetir" autoComplete="new-password" />
+      </label>
+      <button type="submit" disabled={busy || !password} className="btn-ghost w-full">
+        {busy?"Guardando…":"Establecer / cambiar contraseña"}
+      </button>
+      {msg && <p className={cx("rounded-lg px-3 py-2 text-xs",
+        msg.kind==="ok"?"border border-emerald-500/30 bg-emerald-500/10 text-emerald-200":"border border-red-500/30 bg-red-500/10 text-red-300")}>
+        {msg.text}
+      </p>}
+    </form>
+  );
+}
+
 function ProfileScreen({ user, profile, onSignOut, reload, goTo }) {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -754,6 +844,8 @@ function ProfileScreen({ user, profile, onSignOut, reload, goTo }) {
         {msg && <p className={cx("rounded-lg px-3 py-2 text-xs", msg.kind==="ok"?"border border-emerald-500/30 bg-emerald-500/10 text-emerald-200":"border border-red-500/30 bg-red-500/10 text-red-300")}>{msg.text}</p>}
       </form>
 
+      <PasswordSection user={user} />
+
       {profile && profile.role!=="customer" && (
         <button onClick={()=>goTo("admin")} className="btn-ghost w-full">Abrir panel de administración</button>
       )}
@@ -811,10 +903,6 @@ function AdminScreen({ user, profile, toast, reloadSettings }) {
     const upd = {}; upd[field] = !p[field];
     const { error } = await sb.from("products").update(upd).eq("id",p.id);
     if (error) toast("error", error.message); else load();
-  }
-  async function updatePrice(p, cents) {
-    const { error } = await sb.from("products").update({ price_cents: cents }).eq("id", p.id);
-    if (error) toast("error", error.message); else { toast("success","Precio actualizado"); load(); }
   }
   async function deleteProduct(p) {
     if (!confirm("¿Borrar \""+p.name+"\"?")) return;
@@ -933,85 +1021,6 @@ function AdminScreen({ user, profile, toast, reloadSettings }) {
   );
 }
 
-function applyTheme(b) {
-  document.documentElement.style.setProperty("--c-primary", b.color_primary || "#D6AE55");
-  document.documentElement.style.setProperty("--c-bg", b.color_bg || "#090A0F");
-  document.documentElement.style.setProperty("--c-surface", b.color_surface || "#10182F");
-  document.documentElement.style.setProperty("--c-accent", b.color_accent || "#6E5AA6");
-}
-
-function BrandingForm({ value, onChange, onSave }) {
-  const [busy, setBusy] = useState(false);
-  const [uploadingLogo, setUploadingLogo] = useState(false);
-  const fileRef = useRef(null);
-
-  async function handleLogo(file) {
-    if (!file) return;
-    setUploadingLogo(true);
-    try { const url = await uploadToBucket(file, "logos"); onChange({...value, logo_url:url}); }
-    catch(e) { alert("Error al subir: "+e.message); }
-    setUploadingLogo(false);
-  }
-
-  async function save() {
-    setBusy(true); await onSave(); setBusy(false);
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="card p-4 space-y-3">
-        <h3 className="font-display text-base text-cream">Marca</h3>
-        <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Nombre de la app</span>
-          <input value={value.name} onChange={e=>onChange({...value, name:e.target.value})} />
-        </label>
-        <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Subtítulo</span>
-          <input value={value.tagline} onChange={e=>onChange({...value, tagline:e.target.value})} />
-        </label>
-        <div>
-          <span className="text-[11px] uppercase tracking-widest gold-text">Logo (opcional)</span>
-          <div className="mt-2 flex gap-3 items-center">
-            {value.logo_url && <img src={value.logo_url} alt="" style={{width:56,height:56,objectFit:"cover",borderRadius:8}} />}
-            <input type="file" ref={fileRef} accept="image/*" style={{display:"none"}} onChange={e=>handleLogo(e.target.files[0])} />
-            <button type="button" onClick={()=>fileRef.current.click()} className="btn-ghost text-xs" style={{padding:".5rem .75rem"}} disabled={uploadingLogo}>
-              {uploadingLogo?"Subiendo…":value.logo_url?"Cambiar logo":"Subir logo"}
-            </button>
-            {value.logo_url && <button type="button" onClick={()=>onChange({...value, logo_url:null})} className="text-xs text-red-300">Quitar</button>}
-          </div>
-        </div>
-      </div>
-
-      <div className="card p-4 space-y-3">
-        <h3 className="font-display text-base text-cream">Colores</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Principal</span>
-            <input type="color" value={value.color_primary} onChange={e=>onChange({...value, color_primary:e.target.value})} />
-          </label>
-          <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Fondo</span>
-            <input type="color" value={value.color_bg} onChange={e=>onChange({...value, color_bg:e.target.value})} />
-          </label>
-          <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Superficies</span>
-            <input type="color" value={value.color_surface} onChange={e=>onChange({...value, color_surface:e.target.value})} />
-          </label>
-          <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Acento</span>
-            <input type="color" value={value.color_accent} onChange={e=>onChange({...value, color_accent:e.target.value})} />
-          </label>
-        </div>
-        <div className="rounded-xl border border-cosmic/60 p-4" style={{background:"var(--c-bg)"}}>
-          <p className="text-[10px] uppercase tracking-widest" style={{color:"var(--c-primary)"}}>Vista previa</p>
-          <p className="font-display text-xl mt-1" style={{color:"#F4EBDD"}}>{value.name}</p>
-          <p className="text-xs" style={{color:"var(--c-primary)"}}>{value.tagline}</p>
-          <div className="mt-3 flex gap-2">
-            <span className="rounded-lg px-3 py-1 text-xs font-semibold" style={{background:"var(--c-primary)",color:"#090A0F"}}>Botón</span>
-            <span className="rounded-lg px-3 py-1 text-xs font-semibold" style={{background:"var(--c-accent)",color:"#F4EBDD"}}>Acento</span>
-          </div>
-        </div>
-      </div>
-
-      <button onClick={save} disabled={busy} className="btn-gold w-full">{busy?"Guardando…":"Guardar personalización"}</button>
-    </div>
-  );
-}
-
 function ProductFormModal({ value, categories, onClose, onSaved, toast }) {
   const [form, setForm] = useState(value);
   const [busy, setBusy] = useState(false);
@@ -1116,6 +1125,85 @@ function ProductFormModal({ value, categories, onClose, onSaved, toast }) {
   );
 }
 
+function applyTheme(b) {
+  document.documentElement.style.setProperty("--c-primary", b.color_primary || "#D6AE55");
+  document.documentElement.style.setProperty("--c-bg", b.color_bg || "#090A0F");
+  document.documentElement.style.setProperty("--c-surface", b.color_surface || "#10182F");
+  document.documentElement.style.setProperty("--c-accent", b.color_accent || "#6E5AA6");
+}
+
+function BrandingForm({ value, onChange, onSave }) {
+  const [busy, setBusy] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const fileRef = useRef(null);
+
+  async function handleLogo(file) {
+    if (!file) return;
+    setUploadingLogo(true);
+    try { const url = await uploadToBucket(file, "logos"); onChange({...value, logo_url:url}); }
+    catch(e) { alert("Error al subir: "+e.message); }
+    setUploadingLogo(false);
+  }
+
+  async function save() {
+    setBusy(true); await onSave(); setBusy(false);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="card p-4 space-y-3">
+        <h3 className="font-display text-base text-cream">Marca</h3>
+        <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Nombre de la app</span>
+          <input value={value.name} onChange={e=>onChange({...value, name:e.target.value})} />
+        </label>
+        <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Subtítulo</span>
+          <input value={value.tagline} onChange={e=>onChange({...value, tagline:e.target.value})} />
+        </label>
+        <div>
+          <span className="text-[11px] uppercase tracking-widest gold-text">Logo (opcional)</span>
+          <div className="mt-2 flex gap-3 items-center">
+            {value.logo_url && <img src={value.logo_url} alt="" style={{width:56,height:56,objectFit:"cover",borderRadius:8}} />}
+            <input type="file" ref={fileRef} accept="image/*" style={{display:"none"}} onChange={e=>handleLogo(e.target.files[0])} />
+            <button type="button" onClick={()=>fileRef.current.click()} className="btn-ghost text-xs" style={{padding:".5rem .75rem"}} disabled={uploadingLogo}>
+              {uploadingLogo?"Subiendo…":value.logo_url?"Cambiar logo":"Subir logo"}
+            </button>
+            {value.logo_url && <button type="button" onClick={()=>onChange({...value, logo_url:null})} className="text-xs text-red-300">Quitar</button>}
+          </div>
+        </div>
+      </div>
+
+      <div className="card p-4 space-y-3">
+        <h3 className="font-display text-base text-cream">Colores</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Principal</span>
+            <input type="color" value={value.color_primary} onChange={e=>onChange({...value, color_primary:e.target.value})} />
+          </label>
+          <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Fondo</span>
+            <input type="color" value={value.color_bg} onChange={e=>onChange({...value, color_bg:e.target.value})} />
+          </label>
+          <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Superficies</span>
+            <input type="color" value={value.color_surface} onChange={e=>onChange({...value, color_surface:e.target.value})} />
+          </label>
+          <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Acento</span>
+            <input type="color" value={value.color_accent} onChange={e=>onChange({...value, color_accent:e.target.value})} />
+          </label>
+        </div>
+        <div className="rounded-xl border border-cosmic/60 p-4" style={{background:"var(--c-bg)"}}>
+          <p className="text-[10px] uppercase tracking-widest" style={{color:"var(--c-primary)"}}>Vista previa</p>
+          <p className="font-display text-xl mt-1" style={{color:"#F4EBDD"}}>{value.name}</p>
+          <p className="text-xs" style={{color:"var(--c-primary)"}}>{value.tagline}</p>
+          <div className="mt-3 flex gap-2">
+            <span className="rounded-lg px-3 py-1 text-xs font-semibold" style={{background:"var(--c-primary)",color:"#090A0F"}}>Botón</span>
+            <span className="rounded-lg px-3 py-1 text-xs font-semibold" style={{background:"var(--c-accent)",color:"#F4EBDD"}}>Acento</span>
+          </div>
+        </div>
+      </div>
+
+      <button onClick={save} disabled={busy} className="btn-gold w-full">{busy?"Guardando…":"Guardar personalización"}</button>
+    </div>
+  );
+}
+
 function App() {
   const { user, loading: authLoading } = useAuth();
   const { profile, reload } = useProfile(user);
@@ -1149,7 +1237,7 @@ function App() {
 
   if (authLoading) return <div className="min-h-screen grid place-items-center"><div className="spin"></div></div>;
 
-  if (page==="login" || (!user && page==="profile")) {
+  if (!user) {
     return <><LoginScreen onDone={()=>goTo("menu")}/><Toast toasts={toasts} dismiss={dismiss}/></>;
   }
 
