@@ -104,7 +104,6 @@ function orderTypeLabel(o) {
   return "Retiro en local";
 }
 
-/* FIX 3: validación de tipo y tamaño en uploads */
 async function uploadToBucket(file, folder) {
   if (!file.type.startsWith("image/")) throw new Error("El archivo debe ser una imagen.");
   if (file.size > 5 * 1024 * 1024) throw new Error("La imagen no puede superar 5 MB.");
@@ -148,6 +147,88 @@ function useSettings() {
   }, []);
   useEffect(()=>{ load(); }, [load]);
   return { settings, reload: load };
+}
+
+/* MÓDULO RIDER: hook para bolsa de pedidos */
+function useRider(user) {
+  const [available, setAvailable] = useState([]);
+  const [mine, setMine] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
+
+  const load = useCallback(async () => {
+    if (!user) { setAvailable([]); setMine([]); setLoading(false); return; }
+    setLoading(true);
+
+    const [av, mn] = await Promise.all([
+      sb.from("orders")
+        .select("id, order_number, status, total_cents, created_at, delivery_address, customer_notes, order_type")
+        .eq("order_type", "delivery")
+        .eq("status", "ready")
+        .is("rider_id", null)
+        .order("created_at", { ascending: true })
+        .limit(50),
+      sb.from("orders")
+        .select("id, order_number, status, total_cents, created_at, delivery_address, customer_notes, order_type, rider_id")
+        .eq("rider_id", user.id)
+        .in("status", ["on_the_way", "delivered"])
+        .order("created_at", { ascending: false })
+        .limit(50)
+    ]);
+
+    setAvailable(av.data || []);
+    setMine(mn.data || []);
+    setLoading(false);
+  }, [user]);
+
+  useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!user) return;
+    const t = setInterval(() => { load(); }, 30000);
+    return () => clearInterval(t);
+  }, [user, load]);
+
+  async function claim(orderId) {
+    setBusyId(orderId);
+    const { error } = await sb.rpc("claim_order", { p_order_id: orderId });
+    setBusyId(null);
+    if (error) throw error;
+    await load();
+  }
+
+  async function deliver(orderId) {
+    setBusyId(orderId);
+    const { error } = await sb.rpc("rider_mark_delivered", { p_order_id: orderId });
+    setBusyId(null);
+    if (error) throw error;
+    await load();
+  }
+
+  return { available, mine, loading, busyId, claim, deliver, reload: load };
+}
+
+/* MÓDULO RIDER: deep link a Google Maps */
+function mapsUrl(address) {
+  if (!address || typeof address !== "object") return null;
+  const a = address;
+  const q = [
+    a.street && `${a.street} ${a.number || ""}`.trim(),
+    a.city,
+    a.notes && `(${a.notes})`
+  ].filter(Boolean).join(", ");
+  if (!q) return null;
+  return "https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(q);
+}
+
+function formatRiderAddress(addr) {
+  if (!addr || typeof addr !== "object") return "";
+  const a = addr;
+  return [
+    a.street && `${a.street} ${a.number || ""}`.trim(),
+    a.city,
+    a.notes
+  ].filter(Boolean).join(" · ");
 }
 
 function useCart() {
@@ -216,14 +297,21 @@ function Top({user, onProfile, brand, logoUrl, profile}) {
   );
 }
 
-function Bottom({page, setPage, cartCount}) {
-  const items = [
-    {k:"menu", label:"Menú", ico:"M4 5h11v14H4z"},
-    {k:"cart", label:"Carrito", ico:"M2 3h3l2.4 11.2a2 2 0 0 0 2 1.6h8.2L21 7H6"},
-    {k:"orders", label:"Pedidos", ico:"M5 3h14v18l-7-4-7 4z"},
-    {k:"rewards", label:"Puntos", ico:"M12 3l2.6 5.6 6.1.8-4.5 4.2 1.2 6.1L12 16.8 6.6 19.7l1.2-6.1L3.3 9.4l6.1-.8z"},
-    {k:"profile", label:"Perfil", ico:"M12 8a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-8 13a8 8 0 0 1 16 0"}
-  ];
+/* MÓDULO RIDER: Bottom nav adaptativo */
+function Bottom({page, setPage, cartCount, isRider}) {
+  const items = isRider
+    ? [
+        {k:"rider", label:"Repartos", ico:"M3 12h3l2-5h8l2 5h3M5 12v6h14v-6M9 18h6"},
+        {k:"orders", label:"Pedidos", ico:"M5 3h14v18l-7-4-7 4z"},
+        {k:"profile", label:"Perfil", ico:"M12 8a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-8 13a8 8 0 0 1 16 0"}
+      ]
+    : [
+        {k:"menu", label:"Menú", ico:"M4 5h11v14H4z"},
+        {k:"cart", label:"Carrito", ico:"M2 3h3l2.4 11.2a2 2 0 0 0 2 1.6h8.2L21 7H6"},
+        {k:"orders", label:"Pedidos", ico:"M5 3h14v18l-7-4-7 4z"},
+        {k:"rewards", label:"Puntos", ico:"M12 3l2.6 5.6 6.1.8-4.5 4.2 1.2 6.1L12 16.8 6.6 19.7l1.2-6.1L3.3 9.4l6.1-.8z"},
+        {k:"profile", label:"Perfil", ico:"M12 8a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-8 13a8 8 0 0 1 16 0"}
+      ];
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-cosmic/60 bg-night/95 backdrop-blur-md" style={{paddingBottom:"env(safe-area-inset-bottom,0px)"}}>
       <ul className="mx-auto flex max-w-md items-stretch justify-between px-1">
@@ -721,6 +809,161 @@ function OrdersScreen({ user, goTo, detailId }) {
   );
 }
 
+/* MÓDULO RIDER: pantalla principal */
+function RiderScreen({ user, profile, toast, goTo }) {
+  const rider = useRider(user);
+  const [tab, setTab] = useState("available");
+
+  if (!profile) return <Spinner/>;
+  if (profile.role !== "rider") {
+    return (
+      <div className="card p-6 text-center text-sm text-cream/70">
+        Esta sección es solo para repartidores.
+      </div>
+    );
+  }
+
+  const list = tab === "available" ? rider.available : rider.mine;
+
+  async function handleClaim(orderId) {
+    try {
+      await rider.claim(orderId);
+      toast("success", "Viaje tomado. ¡En camino!");
+      setTab("mine");
+    } catch (e) {
+      toast("error", e.message || "No se pudo tomar el pedido");
+    }
+  }
+
+  async function handleDeliver(orderId) {
+    try {
+      await rider.deliver(orderId);
+      toast("success", "Pedido entregado");
+    } catch (e) {
+      toast("error", e.message || "No se pudo marcar entregado");
+    }
+  }
+
+  return (
+    <div className="space-y-4 fade">
+      <header className="space-y-1">
+        <p className="text-[10px] uppercase tracking-[0.28em] gold-text">Repartos</p>
+        <h1 className="font-display text-2xl text-cream">Tus viajes</h1>
+      </header>
+
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          onClick={() => setTab("available")}
+          className={cx(
+            "rounded-xl border px-3 py-2 text-sm font-medium",
+            tab === "available"
+              ? "border-gold bg-gold/15 gold-text"
+              : "border-cosmic bg-night/40 text-cream/70"
+          )}
+        >
+          Disponibles ({rider.available.length})
+        </button>
+        <button
+          onClick={() => setTab("mine")}
+          className={cx(
+            "rounded-xl border px-3 py-2 text-sm font-medium",
+            tab === "mine"
+              ? "border-gold bg-gold/15 gold-text"
+              : "border-cosmic bg-night/40 text-cream/70"
+          )}
+        >
+          Mis viajes ({rider.mine.length})
+        </button>
+      </div>
+
+      {rider.loading && <Spinner label="Buscando pedidos…" />}
+
+      {!rider.loading && list.length === 0 && (
+        <div className="card p-6 text-center text-sm text-cream/60">
+          {tab === "available"
+            ? "No hay pedidos listos para repartir ahora."
+            : "Todavía no tomaste ningún viaje."}
+        </div>
+      )}
+
+      {!rider.loading && list.map(o => {
+        const maps = mapsUrl(o.delivery_address);
+        const isMine = !!o.rider_id || tab === "mine";
+        return (
+          <article key={o.id} className="card p-4 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-display text-lg text-cream">
+                  Pedido #{o.order_number}
+                </p>
+                <p className="text-[11px] text-cream/55">
+                  {fmtDate(o.created_at)}
+                </p>
+              </div>
+              <span className={cx(
+                "rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-widest",
+                STATUS_TONE[o.status]
+              )}>
+                {STATUS_LABEL[o.status]}
+              </span>
+            </div>
+
+            <div className="text-sm text-cream/80 space-y-1">
+              <p className="font-semibold gold-text">
+                {fmt(o.total_cents)}
+              </p>
+              {o.delivery_address && (
+                <p className="text-[12px] leading-relaxed">
+                  📍 {formatRiderAddress(o.delivery_address)}
+                </p>
+              )}
+              {o.customer_notes && (
+                <p className="text-[11px] text-cream/60">
+                  📝 {o.customer_notes}
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2 pt-1">
+              {maps && (
+                <a
+                  href={maps}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn-ghost text-xs"
+                  style={{ padding: ".5rem .75rem" }}
+                >
+                  Abrir en Maps →
+                </a>
+              )}
+              {!isMine && (
+                <button
+                  onClick={() => handleClaim(o.id)}
+                  disabled={rider.busyId === o.id}
+                  className="btn-gold text-xs"
+                  style={{ padding: ".5rem .75rem" }}
+                >
+                  {rider.busyId === o.id ? "Tomando…" : "Tomar viaje"}
+                </button>
+              )}
+              {isMine && o.status === "on_the_way" && (
+                <button
+                  onClick={() => handleDeliver(o.id)}
+                  disabled={rider.busyId === o.id}
+                  className="btn-gold text-xs"
+                  style={{ padding: ".5rem .75rem" }}
+                >
+                  {rider.busyId === o.id ? "Guardando…" : "Marcar entregado"}
+                </button>
+              )}
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
 function RewardsScreen({ user, profile, toast }) {
   const [rewards, setRewards] = useState([]);
   const [txs, setTxs] = useState([]);
@@ -840,6 +1083,7 @@ function PasswordSection({ user }) {
   );
 }
 
+/* MÓDULO RIDER: perfil con botón específico por rol */
 function ProfileScreen({ user, profile, onSignOut, reload, goTo }) {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -902,7 +1146,10 @@ function ProfileScreen({ user, profile, onSignOut, reload, goTo }) {
 
       <PasswordSection user={user} />
 
-      {profile && profile.role!=="customer" && (
+      {profile && profile.role==="rider" && (
+        <button onClick={()=>goTo("rider")} className="btn-gold w-full">Abrir panel de repartos</button>
+      )}
+      {profile && (profile.role==="staff" || profile.role==="admin") && (
         <button onClick={()=>goTo("admin")} className="btn-ghost w-full">Abrir panel de administración</button>
       )}
     </div>
@@ -950,7 +1197,7 @@ function AdminScreen({ user, profile, toast, reloadSettings }) {
   useEffect(()=>{ load(); }, [tab, includeTerm]);
 
   if (!profile) return <Spinner/>;
-  if (profile.role==="customer") return <div className="card p-6 text-center text-sm text-cream/70">No tenés permisos.</div>;
+  if (profile.role==="customer" || profile.role==="rider") return <div className="card p-6 text-center text-sm text-cream/70">No tenés permisos.</div>;
 
   async function changeStatus(orderId, status) {
     const { error } = await sb.rpc("admin_update_order_status",{ p_order_id:orderId, p_status:status });
@@ -1326,9 +1573,10 @@ function App() {
         {page==="orders" && <OrdersScreen user={user} goTo={goTo} detailId={detailId} />}
         {page==="rewards" && <RewardsScreen user={user} profile={profile} toast={toast} />}
         {page==="profile" && <ProfileScreen user={user} profile={profile} onSignOut={signOut} reload={reload} goTo={goTo} />}
+        {page==="rider" && <RiderScreen user={user} profile={profile} toast={toast} goTo={goTo} />}
         {page==="admin" && <AdminScreen user={user} profile={profile} toast={toast} reloadSettings={reloadSettings} />}
       </main>
-      <Bottom page={page} setPage={(p)=>{ setDetailId(null); setPage(p); }} cartCount={cart.count} />
+      <Bottom page={page} setPage={(p)=>{ setDetailId(null); setPage(p); }} cartCount={cart.count} isRider={profile?.role==="rider"} />
       <Toast toasts={toasts} dismiss={dismiss} />
     </div>
   );
