@@ -89,7 +89,10 @@ function zodiacMsg(sign, cartNames) {
   return { title:s+" · lectura de tu pedido", body:s+" de "+r.el+": "+r.t+" Tu pedido vibra con "+cartNames.slice(0,3).join(", ")+". "+r.c };
 }
 
+/* FIX 3: validación de tipo y tamaño en uploads */
 async function uploadToBucket(file, folder) {
+  if (!file.type.startsWith("image/")) throw new Error("El archivo debe ser una imagen.");
+  if (file.size > 5 * 1024 * 1024) throw new Error("La imagen no puede superar 5 MB.");
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
   const path = folder + "/" + Math.random().toString(36).slice(2) + "-" + Date.now() + "." + ext;
   const { error } = await sb.storage.from("brand-assets").upload(path, file, { cacheControl: "3600", upsert: false });
@@ -893,7 +896,9 @@ function AdminScreen({ user, profile, toast, reloadSettings }) {
   }
   useEffect(()=>{ load(); }, [tab, includeTerm]);
 
-  if (!profile || profile.role==="customer") return <div className="card p-6 text-center text-sm text-cream/70">No tenés permisos.</div>;
+  /* FIX 2: no mostrar "No tenés permisos" mientras carga el perfil */
+  if (!profile) return <Spinner/>;
+  if (profile.role==="customer") return <div className="card p-6 text-center text-sm text-cream/70">No tenés permisos.</div>;
 
   async function changeStatus(orderId, status) {
     const { error } = await sb.rpc("admin_update_order_status",{ p_order_id:orderId, p_status:status });
@@ -909,6 +914,8 @@ function AdminScreen({ user, profile, toast, reloadSettings }) {
     const { error } = await sb.from("products").delete().eq("id", p.id);
     if (error) toast("error", error.message); else { toast("success","Producto borrado"); load(); }
   }
+
+  /* FIX 1: convertir null → "" y chequear el error del RPC */
   async function saveBranding() {
     const updates = [
       ['brand.name', branding.name],
@@ -920,7 +927,16 @@ function AdminScreen({ user, profile, toast, reloadSettings }) {
       ['brand.color_accent', branding.color_accent]
     ];
     for (const [k,v] of updates) {
-      await sb.rpc("admin_upsert_app_setting", { p_key:k, p_value:v, p_description:null });
+      const value = (v === null || v === undefined) ? "" : v;
+      const { error } = await sb.rpc("admin_upsert_app_setting", {
+        p_key: k,
+        p_value: value,
+        p_description: null
+      });
+      if (error) {
+        toast("error", "Error guardando " + k + ": " + error.message);
+        return;
+      }
     }
     toast("success","Personalización guardada");
     if (reloadSettings) await reloadSettings();
@@ -1039,15 +1055,16 @@ function ProductFormModal({ value, categories, onClose, onSaved, toast }) {
 
   async function save(e) {
     e.preventDefault(); setBusy(true);
+    /* FIX 4: forzar enteros positivos en price y points */
     const payload = {
       name: form.name, description: form.description||null,
-      price_cents: Number(form.price_cents)||0,
-      points_earned: Number(form.points_earned)||0,
+      price_cents: Math.max(0, Math.round(Number(form.price_cents)||0)),
+      points_earned: Math.max(0, Math.round(Number(form.points_earned)||0)),
       category_id: form.category_id||null,
       image_url: form.image_url||null,
       is_available: !!form.is_available, is_active: !!form.is_active,
-      sort_order: Number(form.sort_order)||0,
-      stock_quantity: form.stock_quantity===""||form.stock_quantity==null ? null : Number(form.stock_quantity)
+      sort_order: Math.max(0, Math.round(Number(form.sort_order)||0)),
+      stock_quantity: form.stock_quantity===""||form.stock_quantity==null ? null : Math.max(0, Math.round(Number(form.stock_quantity)||0))
     };
     let res;
     if (form.id) res = await sb.from("products").update(payload).eq("id", form.id);
@@ -1081,7 +1098,7 @@ function ProductFormModal({ value, categories, onClose, onSaved, toast }) {
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Precio (centavos)</span>
-              <input type="number" min={0} step={100} value={form.price_cents} onChange={e=>upd("price_cents", e.target.value)} />
+              <input type="number" min={0} step={1} value={form.price_cents} onChange={e=>upd("price_cents", e.target.value)} />
               <span className="text-[10px] text-cream/50">{fmt(Number(form.price_cents)||0)}</span>
             </label>
             <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Puntos</span>
@@ -1093,7 +1110,7 @@ function ProductFormModal({ value, categories, onClose, onSaved, toast }) {
               <input type="number" min={0} value={form.stock_quantity==null?"":form.stock_quantity} onChange={e=>upd("stock_quantity", e.target.value)} />
             </label>
             <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Orden</span>
-              <input type="number" value={form.sort_order} onChange={e=>upd("sort_order", e.target.value)} />
+              <input type="number" min={0} value={form.sort_order} onChange={e=>upd("sort_order", e.target.value)} />
             </label>
           </div>
           <div>
@@ -1106,6 +1123,7 @@ function ProductFormModal({ value, categories, onClose, onSaved, toast }) {
               </button>
               {form.image_url && <button type="button" onClick={()=>upd("image_url",null)} className="text-xs text-red-300">Quitar</button>}
             </div>
+            <p className="text-[10px] text-cream/50 mt-1">JPG, PNG o WebP · máx 5 MB</p>
           </div>
           <div className="flex gap-4 pt-1">
             <label className="flex items-center gap-2 text-xs text-cream/80">
@@ -1169,6 +1187,7 @@ function BrandingForm({ value, onChange, onSave }) {
             </button>
             {value.logo_url && <button type="button" onClick={()=>onChange({...value, logo_url:null})} className="text-xs text-red-300">Quitar</button>}
           </div>
+          <p className="text-[10px] text-cream/50 mt-1">JPG, PNG o WebP · máx 5 MB</p>
         </div>
       </div>
 
