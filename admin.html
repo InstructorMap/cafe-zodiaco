@@ -1,0 +1,765 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#10182F" />
+<title>Panel · Café Zodíaco</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%2310182F'/%3E%3Ccircle cx='256' cy='256' r='200' fill='none' stroke='%23D6AE55' stroke-width='8'/%3E%3C/svg%3E" />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: { extend: {
+      colors: { night:'#10182F', cosmic:'#263A68', gold:'#D6AE55', cream:'#F4EBDD', ink:'#090A0F', astral:'#6E5AA6' },
+      fontFamily: { display:['"Cormorant Garamond"','Georgia','serif'], sans:['Inter','system-ui','sans-serif'] }
+    }}
+  };
+</script>
+<style>
+  :root { --c-primary:#D6AE55; --c-bg:#090A0F; --c-surface:#10182F; --c-accent:#6E5AA6; }
+  body { background:var(--c-bg); color:#F4EBDD; font-family:Inter,system-ui,sans-serif; }
+  .bg-radial { background:radial-gradient(120% 90% at 50% 0%, var(--c-surface) 0%, var(--c-bg) 60%, #000 100%); }
+  .card { background:rgba(16,24,47,.75); border:1px solid rgba(38,58,104,.6); border-radius:1rem; backdrop-filter:blur(4px); }
+  .btn-gold { background:var(--c-primary); color:#090A0F; font-weight:600; padding:.75rem 1rem; border-radius:.75rem; transition:filter .15s; }
+  .btn-gold:hover { filter:brightness(1.1); }
+  .btn-gold:disabled { opacity:.5; cursor:not-allowed; }
+  .btn-ghost { border:1px solid #263A68; color:#F4EBDD; font-weight:600; padding:.75rem 1rem; border-radius:.75rem; background:transparent; }
+  .btn-ghost:hover { background:rgba(38,58,104,.4); }
+  .btn-danger { border:1px solid rgba(239,68,68,.5); background:rgba(239,68,68,.15); color:#fca5a5; font-weight:600; padding:.75rem 1rem; border-radius:.75rem; }
+  input,textarea,select { background:rgba(9,10,15,.6); border:1px solid #263A68; color:#F4EBDD; border-radius:.75rem; padding:.75rem; width:100%; font-size:14px; font-family:inherit; }
+  input:focus,textarea:focus,select:focus { outline:none; border-color:var(--c-primary); }
+  input::placeholder,textarea::placeholder { color:rgba(244,235,221,.4); }
+  input[type="checkbox"] { width:auto; }
+  input[type="color"] { padding:.25rem; height:44px; cursor:pointer; }
+  .fade { animation:fade .25s ease-out both; }
+  @keyframes fade { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:none } }
+  .spin { display:inline-block; width:16px; height:16px; border:2px solid rgba(214,174,85,.3); border-top-color:var(--c-primary); border-radius:50%; animation:s 1s linear infinite; vertical-align:middle; }
+  @keyframes s { to { transform:rotate(360deg) } }
+  .gold-text { color:var(--c-primary); }
+  .astral-text { color:var(--c-accent); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useCallback, useRef } = React;
+const sb = window.supabase.createClient(
+  "https://weoixcfpfgnxwfvluhlo.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indlb2l4Y2ZwZmdueHdmdmx1aGxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1NzEwOTYsImV4cCI6MjEwNzE0NzA5Nn0.a7pXkHSeVZcx9MAyTdIMF7yf0m0kda7I_rLHqEgvC80"
+);
+
+const cx = (...xs) => xs.filter(Boolean).join(" ");
+const fmt = (c) => new Intl.NumberFormat("es-AR",{style:"currency",currency:"ARS",maximumFractionDigits:0}).format((c||0)/100);
+const fmtDate = (iso) => new Intl.DateTimeFormat("es-AR",{dateStyle:"medium",timeStyle:"short"}).format(new Date(iso));
+
+const STATUS_LABEL = {pending:"Pendiente",confirmed:"Confirmado",preparing:"Preparando",ready:"Listo",on_the_way:"En camino",delivered:"Entregado",completed:"Completado",cancelled:"Cancelado",rejected:"Rechazado"};
+const STATUS_TONE = {pending:"border-cream/30 bg-cream/10 text-cream/80",confirmed:"border-astral/60 bg-astral/15 text-astral",preparing:"border-amber-500/40 bg-amber-500/15 text-amber-200",ready:"border-emerald-500/40 bg-emerald-500/15 text-emerald-200",on_the_way:"border-sky-500/40 bg-sky-500/15 text-sky-200",delivered:"border-emerald-500/40 bg-emerald-500/15 text-emerald-200",completed:"border-emerald-500/40 bg-emerald-500/15 text-emerald-200",cancelled:"border-red-500/40 bg-red-500/15 text-red-200",rejected:"border-red-500/40 bg-red-500/15 text-red-200"};
+
+function orderTypeLabel(o) {
+  if (!o) return "";
+  if (o.order_type==="delivery") return "Delivery";
+  if (o.order_type==="table") return "Mesa " + (o.table_number||"?");
+  return "Retiro en local";
+}
+
+async function uploadToBucket(file, folder) {
+  if (!file.type.startsWith("image/")) throw new Error("El archivo debe ser una imagen.");
+  if (file.size > 5 * 1024 * 1024) throw new Error("La imagen no puede superar 5 MB.");
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = folder + "/" + Math.random().toString(36).slice(2) + "-" + Date.now() + "." + ext;
+  const { error } = await sb.storage.from("brand-assets").upload(path, file, { cacheControl: "3600", upsert: false });
+  if (error) throw error;
+  const { data } = sb.storage.from("brand-assets").getPublicUrl(path);
+  return data.publicUrl;
+}
+
+function applyTheme(b) {
+  document.documentElement.style.setProperty("--c-primary", b.color_primary || "#D6AE55");
+  document.documentElement.style.setProperty("--c-bg", b.color_bg || "#090A0F");
+  document.documentElement.style.setProperty("--c-surface", b.color_surface || "#10182F");
+  document.documentElement.style.setProperty("--c-accent", b.color_accent || "#6E5AA6");
+}
+
+function useAuth() {
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    sb.auth.getSession().then(({data}) => { setSession(data.session||null); setLoading(false); });
+    const {data:{subscription}} = sb.auth.onAuthStateChange((_,s)=>setSession(s));
+    return ()=>subscription.unsubscribe();
+  }, []);
+  return { session, user: session?.user||null, loading };
+}
+
+function useProfile(user) {
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const load = useCallback(async ()=>{
+    if (!user) { setProfile(null); return; }
+    setLoading(true);
+    const {data} = await sb.from("profiles").select("*").eq("id",user.id).maybeSingle();
+    setProfile(data||null);
+    setLoading(false);
+  }, [user]);
+  useEffect(()=>{ load(); },[load]);
+  return { profile, loading, reload: load };
+}
+
+function useSettings() {
+  const [settings, setSettings] = useState({});
+  const load = useCallback(async ()=>{
+    const { data } = await sb.from("app_settings").select("key,value");
+    const map = {};
+    for (const row of data||[]) map[row.key] = row.value;
+    setSettings(map);
+  }, []);
+  useEffect(()=>{ load(); }, [load]);
+  return { settings, reload: load };
+}
+
+function Spinner({label="Cargando…"}) {
+  return <div className="flex flex-col items-center gap-3 py-12 text-cream/60 text-xs"><span className="spin"></span>{label}</div>;
+}
+
+function Toast({toasts, dismiss}) {
+  if (!toasts.length) return null;
+  return (
+    <div className="pointer-events-none fixed inset-x-0 z-50 mx-auto flex max-w-md flex-col gap-2 px-4" style={{bottom:"1rem"}}>
+      {toasts.map(t=>(
+        <button key={t.id} onClick={()=>dismiss(t.id)} className={cx("pointer-events-auto rounded-xl border px-4 py-3 text-left text-sm backdrop-blur shadow-xl",
+          t.kind==="success" && "border-emerald-500/40 bg-emerald-500/15 text-emerald-100",
+          t.kind==="error" && "border-red-500/40 bg-red-500/15 text-red-100",
+          t.kind==="info" && "border-astral/60 bg-astral/15 text-cream")}>
+          {t.msg}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function LoginBox({ onDone }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [mode, setMode] = useState("password");
+  const [stage, setStage] = useState("email");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  async function loginPwd(e) {
+    e.preventDefault(); setBusy(true); setErr(null);
+    const { error } = await sb.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
+    setBusy(false);
+    if (error) setErr(error.message); else onDone && onDone();
+  }
+  async function sendOtp(e) {
+    e.preventDefault(); setBusy(true); setErr(null);
+    const { error } = await sb.auth.signInWithOtp({ email: email.trim().toLowerCase(), options:{ shouldCreateUser:true } });
+    setBusy(false);
+    if (error) setErr(error.message); else setStage("otp");
+  }
+  async function verifyOtp(e) {
+    e.preventDefault(); setBusy(true); setErr(null);
+    const { error } = await sb.auth.verifyOtp({ email: email.trim().toLowerCase(), token: code.trim(), type:"email" });
+    setBusy(false);
+    if (error) setErr(error.message); else onDone && onDone();
+  }
+
+  return (
+    <div className="min-h-screen bg-radial px-6 py-12 flex items-center justify-center">
+      <div className="mx-auto w-full max-w-sm space-y-6 fade">
+        <div className="text-center">
+          <p className="text-[10px] uppercase tracking-[0.28em] gold-text">Café Zodíaco</p>
+          <h1 className="font-display text-3xl text-cream mt-1">Panel de operación</h1>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={()=>{setMode("password"); setErr(null);}}
+            className={cx("rounded-xl border px-3 py-2 text-sm font-medium",
+              mode==="password"?"border-gold bg-gold/15 gold-text":"border-cosmic bg-night/40 text-cream/70")}>
+            Contraseña
+          </button>
+          <button onClick={()=>{setMode("otp"); setErr(null); setStage("email");}}
+            className={cx("rounded-xl border px-3 py-2 text-sm font-medium",
+              mode==="otp"?"border-gold bg-gold/15 gold-text":"border-cosmic bg-night/40 text-cream/70")}>
+            Código
+          </button>
+        </div>
+
+        <div className="card p-5 space-y-4">
+          {mode==="password" && (
+            <form onSubmit={loginPwd} className="space-y-4">
+              <label className="block space-y-1"><span className="text-xs text-cream/70">Email</span>
+                <input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@email.com" />
+              </label>
+              <label className="block space-y-1"><span className="text-xs text-cream/70">Contraseña</span>
+                <input type="password" required value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" />
+              </label>
+              <button disabled={busy} className="btn-gold w-full">{busy?"Ingresando…":"Ingresar"}</button>
+            </form>
+          )}
+          {mode==="otp" && stage==="email" && (
+            <form onSubmit={sendOtp} className="space-y-4">
+              <label className="block space-y-1"><span className="text-xs text-cream/70">Email</span>
+                <input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@email.com" />
+              </label>
+              <button disabled={busy} className="btn-gold w-full">{busy?"Enviando…":"Enviar código"}</button>
+            </form>
+          )}
+          {mode==="otp" && stage==="otp" && (
+            <form onSubmit={verifyOtp} className="space-y-4">
+              <label className="block space-y-1">
+                <span className="text-xs text-cream/70">Código enviado a <b className="gold-text">{email}</b></span>
+                <input inputMode="numeric" maxLength={6} value={code}
+                  onChange={e=>setCode(e.target.value.replace(/\D/g,""))} placeholder="••••••"
+                  style={{textAlign:"center",fontSize:24,letterSpacing:8}} />
+              </label>
+              <button disabled={busy||code.length!==6} className="btn-gold w-full">{busy?"Verificando…":"Ingresar"}</button>
+              <button type="button" onClick={()=>{setStage("email");setCode("");setErr(null);}} className="btn-ghost w-full">Atrás</button>
+            </form>
+          )}
+          {err && <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">{err}</p>}
+        </div>
+
+        <div className="text-center">
+          <a href="/cafe-zodiaco/" className="text-xs gold-text underline">← Volver a la app</a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminApp({ user, profile, onSignOut, toast, settings, reloadSettings }) {
+  const [tab, setTab] = useState("orders");
+  const [orders, setOrders] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [cats, setCats] = useState([]);
+  const [applications, setApplications] = useState([]);
+  const [branding, setBranding] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [includeTerm, setIncludeTerm] = useState(false);
+  const [editing, setEditing] = useState(null);
+
+  async function load() {
+    setLoading(true);
+    if (tab==="orders") {
+      let q = sb.from("orders").select("*").order("created_at",{ascending:false}).limit(80);
+      if (!includeTerm) q = q.in("status",["pending","confirmed","preparing","ready","on_the_way"]);
+      const { data } = await q;
+      setOrders(data||[]);
+    } else if (tab==="products") {
+      const [p, c] = await Promise.all([
+        sb.from("products").select("*").order("sort_order"),
+        sb.from("categories").select("*").order("sort_order")
+      ]);
+      setProducts(p.data||[]); setCats(c.data||[]);
+    } else if (tab==="riders") {
+      const { data } = await sb.from("rider_applications")
+        .select("*").order("created_at", { ascending: false }).limit(80);
+      setApplications(data || []);
+    } else if (tab==="branding") {
+      const { data } = await sb.from("app_settings").select("key,value").like("key","brand.%");
+      const map = {}; for (const r of data||[]) map[r.key]=r.value;
+      setBranding({
+        name: map['brand.name'] || "Café Zodíaco",
+        tagline: map['brand.tagline'] || "Café & Zodiaco",
+        logo_url: map['brand.logo_url'] || null,
+        color_primary: map['brand.color_primary'] || "#D6AE55",
+        color_bg: map['brand.color_bg'] || "#090A0F",
+        color_surface: map['brand.color_surface'] || "#10182F",
+        color_accent: map['brand.color_accent'] || "#6E5AA6"
+      });
+    }
+    setLoading(false);
+  }
+  useEffect(()=>{ load(); }, [tab, includeTerm]);
+
+  async function changeStatus(orderId, status) {
+    const { error } = await sb.rpc("admin_update_order_status",{ p_order_id:orderId, p_status:status });
+    if (error) toast("error", error.message); else { toast("success","Estado: "+status); load(); }
+  }
+  async function toggleProduct(p, field) {
+    const upd = {}; upd[field] = !p[field];
+    const { error } = await sb.from("products").update(upd).eq("id",p.id);
+    if (error) toast("error", error.message); else load();
+  }
+  async function deleteProduct(p) {
+    if (!confirm("¿Borrar \""+p.name+"\"?")) return;
+    const { error } = await sb.from("products").delete().eq("id", p.id);
+    if (error) toast("error", error.message); else { toast("success","Producto borrado"); load(); }
+  }
+  async function saveBranding() {
+    const updates = [
+      ['brand.name', branding.name],
+      ['brand.tagline', branding.tagline],
+      ['brand.logo_url', branding.logo_url],
+      ['brand.color_primary', branding.color_primary],
+      ['brand.color_bg', branding.color_bg],
+      ['brand.color_surface', branding.color_surface],
+      ['brand.color_accent', branding.color_accent]
+    ];
+    for (const [k,v] of updates) {
+      const value = (v === null || v === undefined) ? "" : v;
+      const { error } = await sb.rpc("admin_upsert_app_setting", { p_key: k, p_value: value, p_description: null });
+      if (error) { toast("error", "Error guardando " + k + ": " + error.message); return; }
+    }
+    toast("success","Personalización guardada");
+    if (reloadSettings) await reloadSettings();
+    applyTheme(branding);
+  }
+
+  return (
+    <div className="min-h-screen bg-radial">
+      <header className="sticky top-0 z-30 border-b border-cosmic/50 bg-ink/85 backdrop-blur-md">
+        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            <a href="/cafe-zodiaco/" className="text-xs gold-text underline">← App</a>
+            <span className="font-display text-lg text-cream">Panel</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="hidden sm:inline text-[11px] text-cream/50">{user.email}</span>
+            <span className="rounded-full border border-astral/60 bg-astral/15 px-2 py-0.5 text-[10px] uppercase tracking-widest astral-text">
+              {profile.role}
+            </span>
+            <button onClick={onSignOut} className="text-xs text-cream/60 hover:text-cream underline">Salir</button>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-4xl px-4 py-5 space-y-4">
+        <nav className="flex gap-2 overflow-x-auto -mx-4 px-4">
+          {[
+            {k:"orders",l:"Pedidos"},
+            {k:"products",l:"Productos"},
+            {k:"riders",l:"Riders"},
+            {k:"branding",l:"Personalización"}
+          ].map(t=>(
+            <button key={t.k} onClick={()=>setTab(t.k)}
+              className={cx("shrink-0 rounded-full border px-4 py-1.5 text-xs font-medium",
+                tab===t.k?"border-gold bg-gold/15 gold-text":"border-cosmic/70 bg-night/40 text-cream/70")}>
+              {t.l}
+            </button>
+          ))}
+        </nav>
+
+        {loading && <Spinner/>}
+
+        {tab==="orders" && !loading && (
+          <>
+            <label className="flex items-center gap-2 text-[11px] text-cream/70">
+              <input type="checkbox" checked={includeTerm} onChange={e=>setIncludeTerm(e.target.checked)} />
+              Incluir finalizados
+            </label>
+            {orders.length===0 && <div className="card p-5 text-center text-sm text-cream/60">No hay pedidos en curso.</div>}
+            <div className="grid gap-3 sm:grid-cols-2">
+              {orders.map(o=>{
+                const flow = o.order_type==="delivery"
+                  ? ["pending","confirmed","preparing","ready","on_the_way","delivered","completed"]
+                  : ["pending","confirmed","preparing","ready","completed"];
+                const i = flow.indexOf(o.status);
+                const next = i>=0 && i<flow.length-1 ? flow[i+1] : null;
+                const mapsLink = o.order_type==="delivery" && o.delivery_address
+                  ? "https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(
+                      [o.delivery_address.street, o.delivery_address.number, o.delivery_address.city].filter(Boolean).join(" ")
+                    )
+                  : null;
+                return (
+                  <article key={o.id} className="card p-4 space-y-2">
+                    <div className="flex justify-between gap-3">
+                      <div>
+                        <p className="font-display text-base text-cream">#{o.order_number}</p>
+                        <p className="text-[11px] text-cream/55">{orderTypeLabel(o)} · {fmtDate(o.created_at)}</p>
+                      </div>
+                      <span className={cx("rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-widest", STATUS_TONE[o.status])}>
+                        {STATUS_LABEL[o.status]}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-cream/60">Total</span>
+                      <span className="gold-text font-semibold">{fmt(o.total_cents)}</span>
+                    </div>
+                    {o.delivery_address && (
+                      <p className="text-[11px] text-cream/70">
+                        📍 {[o.delivery_address.street, o.delivery_address.number, o.delivery_address.city].filter(Boolean).join(" ")}
+                      </p>
+                    )}
+                    {o.customer_notes && <p className="text-[11px] text-cream/70">📝 {o.customer_notes}</p>}
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {next && (
+                        <button onClick={()=>changeStatus(o.id,next)} className="btn-gold text-xs" style={{padding:".4rem .75rem"}}>
+                          → {STATUS_LABEL[next]}
+                        </button>
+                      )}
+                      {mapsLink && (
+                        <a href={mapsLink} target="_blank" rel="noreferrer" className="btn-ghost text-xs" style={{padding:".4rem .75rem"}}>
+                          Maps
+                        </a>
+                      )}
+                      {o.status!=="cancelled" && !["completed","cancelled","rejected"].includes(o.status) && (
+                        <button onClick={()=>changeStatus(o.id,"cancelled")} className="btn-danger text-xs" style={{padding:".4rem .75rem"}}>
+                          Cancelar
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {tab==="products" && !loading && (
+          <>
+            <div className="flex justify-between items-center">
+              <p className="text-xs text-cream/60">{products.length} producto(s)</p>
+              <button onClick={()=>setEditing({ id:null, name:"", description:"", price_cents:0, points_earned:0, category_id:null, image_url:null, is_available:true, is_active:true, sort_order:0, stock_quantity:null })}
+                className="btn-gold text-xs" style={{padding:".5rem .75rem"}}>+ Nuevo producto</button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {products.map(p=>(
+                <article key={p.id} className="card p-4 space-y-2">
+                  <div className="flex gap-3 items-start">
+                    {p.image_url
+                      ? <img src={p.image_url} alt="" style={{width:56,height:56,objectFit:"cover",borderRadius:8,flexShrink:0}} />
+                      : <div className="grid place-items-center rounded-lg border border-cosmic/60 text-sm gold-text" style={{width:56,height:56}}>{(p.name[0]||"·").toUpperCase()}</div>}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm text-cream">{p.name}</p>
+                      <p className="text-[11px] text-cream/55">
+                        {fmt(p.price_cents)} · {p.points_earned} pts · {p.is_active?"activo":"inactivo"} · {p.is_available?(p.stock_quantity===0?"sin stock":"disponible"):"sin stock"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={()=>setEditing({...p})} className="btn-ghost text-xs" style={{padding:".4rem .75rem"}}>Editar</button>
+                    <button onClick={()=>toggleProduct(p,"is_available")} className="btn-ghost text-xs" style={{padding:".4rem .75rem"}}>{p.is_available?"Sin stock":"Disponible"}</button>
+                    <button onClick={()=>toggleProduct(p,"is_active")} className="btn-ghost text-xs" style={{padding:".4rem .75rem"}}>{p.is_active?"Desactivar":"Activar"}</button>
+                    <button onClick={()=>deleteProduct(p)} className="btn-danger text-xs" style={{padding:".4rem .75rem"}}>Borrar</button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </>
+        )}
+
+        {tab==="riders" && !loading && (
+          <>
+            <p className="text-xs text-cream/60">{applications.length} postulación(es)</p>
+            {applications.length===0 && <div className="card p-5 text-center text-sm text-cream/60">No hay postulaciones todavía.</div>}
+            <div className="grid gap-3 sm:grid-cols-2">
+              {applications.map(a=>(
+                <article key={a.id} className="card p-4 space-y-2">
+                  <div className="flex justify-between gap-3 items-start">
+                    <div className="min-w-0">
+                      <p className="font-display text-base text-cream">{a.full_name}</p>
+                      <p className="text-[11px] text-cream/55">{a.email} · {a.phone}</p>
+                      <p className="text-[11px] text-cream/55">
+                        {a.vehicle_type}
+                        {a.vehicle_plate ? " · " + a.vehicle_plate : ""}
+                        {a.zone ? " · " + a.zone : ""}
+                      </p>
+                    </div>
+                    <span className={cx(
+                      "rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-widest",
+                      a.status==="pending" && "border-amber-500/40 bg-amber-500/15 text-amber-200",
+                      a.status==="approved" && "border-emerald-500/40 bg-emerald-500/15 text-emerald-200",
+                      a.status==="rejected" && "border-red-500/40 bg-red-500/15 text-red-200"
+                    )}>
+                      {a.status}
+                    </span>
+                  </div>
+                  {a.availability && <p className="text-[11px] text-cream/70">🕒 {a.availability}</p>}
+                  {a.experience && <p className="text-[11px] text-cream/70">📋 {a.experience}</p>}
+                  {a.notes && <p className="text-[11px] text-cream/70">💬 {a.notes}</p>}
+                  {a.status==="pending" && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <button
+                        onClick={async ()=>{
+                          const { error } = await sb.rpc("approve_rider_application", { p_application_id: a.id });
+                          if (error) { toast("error", error.message); return; }
+                          toast("success", a.full_name + " es rider ahora");
+                          load();
+                        }}
+                        className="btn-gold text-xs" style={{ padding: ".4rem .75rem" }}>
+                        Aprobar
+                      </button>
+                      <button
+                        onClick={async ()=>{
+                          const reason = prompt("Motivo del rechazo (opcional):") || null;
+                          const { error } = await sb.rpc("reject_rider_application", {
+                            p_application_id: a.id,
+                            p_reason: reason
+                          });
+                          if (error) { toast("error", error.message); return; }
+                          toast("success", "Postulación rechazada");
+                          load();
+                        }}
+                        className="btn-danger text-xs" style={{ padding: ".4rem .75rem" }}>
+                        Rechazar
+                      </button>
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          </>
+        )}
+
+        {tab==="branding" && !loading && branding && (
+          <BrandingForm value={branding} onChange={setBranding} onSave={saveBranding} />
+        )}
+
+        {editing && (
+          <ProductFormModal
+            value={editing}
+            categories={cats}
+            onClose={()=>setEditing(null)}
+            onSaved={()=>{ setEditing(null); load(); }}
+            toast={toast}
+          />
+        )}
+      </main>
+    </div>
+  );
+}
+
+function ProductFormModal({ value, categories, onClose, onSaved, toast }) {
+  const [form, setForm] = useState(value);
+  const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef(null);
+
+  function upd(k, v) { setForm(f=>({...f, [k]:v})); }
+
+  async function handleImage(file) {
+    if (!file) return;
+    setUploading(true);
+    try { const url = await uploadToBucket(file, "products"); upd("image_url", url); }
+    catch(e) { toast("error","Error al subir: "+e.message); }
+    setUploading(false);
+  }
+
+  async function save(e) {
+    e.preventDefault(); setBusy(true);
+    const payload = {
+      name: form.name, description: form.description||null,
+      price_cents: Math.max(0, Math.round(Number(form.price_cents)||0)),
+      points_earned: Math.max(0, Math.round(Number(form.points_earned)||0)),
+      category_id: form.category_id||null,
+      image_url: form.image_url||null,
+      is_available: !!form.is_available, is_active: !!form.is_active,
+      sort_order: Math.max(0, Math.round(Number(form.sort_order)||0)),
+      stock_quantity: form.stock_quantity===""||form.stock_quantity==null ? null : Math.max(0, Math.round(Number(form.stock_quantity)||0))
+    };
+    let res;
+    if (form.id) res = await sb.from("products").update(payload).eq("id", form.id);
+    else res = await sb.from("products").insert(payload);
+    setBusy(false);
+    if (res.error) { toast("error", res.error.message); return; }
+    toast("success", form.id ? "Producto actualizado" : "Producto creado");
+    onSaved();
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+      <button onClick={onClose} className="absolute inset-0 bg-black/70 backdrop-blur-sm" aria-label="Cerrar"></button>
+      <div className="relative w-full max-w-md max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border-t sm:border border-cosmic bg-night pb-6">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-cosmic/60 bg-night/95 px-4 py-3 backdrop-blur">
+          <h2 className="font-display text-lg text-cream">{form.id?"Editar producto":"Nuevo producto"}</h2>
+          <button onClick={onClose} className="text-2xl text-cream/60">×</button>
+        </div>
+        <form onSubmit={save} className="p-4 space-y-3">
+          <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Nombre</span>
+            <input required value={form.name} onChange={e=>upd("name",e.target.value)} />
+          </label>
+          <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Categoría</span>
+            <select value={form.category_id||""} onChange={e=>upd("category_id", e.target.value||null)}>
+              <option value="">Sin categoría</option>
+              {categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </label>
+          <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Descripción</span>
+            <textarea rows={3} maxLength={280} value={form.description||""} onChange={e=>upd("description", e.target.value)} />
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Precio (centavos)</span>
+              <input type="number" min={0} step={1} value={form.price_cents} onChange={e=>upd("price_cents", e.target.value)} />
+              <span className="text-[10px] text-cream/50">{fmt(Number(form.price_cents)||0)}</span>
+            </label>
+            <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Puntos</span>
+              <input type="number" min={0} value={form.points_earned} onChange={e=>upd("points_earned", e.target.value)} />
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Stock (vacío = ∞)</span>
+              <input type="number" min={0} value={form.stock_quantity==null?"":form.stock_quantity} onChange={e=>upd("stock_quantity", e.target.value)} />
+            </label>
+            <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Orden</span>
+              <input type="number" min={0} value={form.sort_order} onChange={e=>upd("sort_order", e.target.value)} />
+            </label>
+          </div>
+          <div>
+            <span className="text-[11px] uppercase tracking-widest gold-text">Foto</span>
+            <div className="mt-2 flex gap-3 items-center">
+              {form.image_url && <img src={form.image_url} alt="" style={{width:72,height:72,objectFit:"cover",borderRadius:8}} />}
+              <input type="file" ref={fileRef} accept="image/*" style={{display:"none"}} onChange={e=>handleImage(e.target.files[0])} />
+              <button type="button" onClick={()=>fileRef.current.click()} className="btn-ghost text-xs" style={{padding:".5rem .75rem"}} disabled={uploading}>
+                {uploading?"Subiendo…":form.image_url?"Cambiar foto":"Subir foto"}
+              </button>
+              {form.image_url && <button type="button" onClick={()=>upd("image_url",null)} className="text-xs text-red-300">Quitar</button>}
+            </div>
+            <p className="text-[10px] text-cream/50 mt-1">JPG, PNG o WebP · máx 5 MB</p>
+          </div>
+          <div className="flex gap-4 pt-1">
+            <label className="flex items-center gap-2 text-xs text-cream/80">
+              <input type="checkbox" checked={!!form.is_available} onChange={e=>upd("is_available", e.target.checked)} /> Disponible
+            </label>
+            <label className="flex items-center gap-2 text-xs text-cream/80">
+              <input type="checkbox" checked={!!form.is_active} onChange={e=>upd("is_active", e.target.checked)} /> Activo
+            </label>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button type="submit" disabled={busy||uploading} className="btn-gold flex-1">{busy?"Guardando…":"Guardar"}</button>
+            <button type="button" onClick={onClose} className="btn-ghost">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function BrandingForm({ value, onChange, onSave }) {
+  const [busy, setBusy] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const fileRef = useRef(null);
+
+  async function handleLogo(file) {
+    if (!file) return;
+    setUploadingLogo(true);
+    try { const url = await uploadToBucket(file, "logos"); onChange({...value, logo_url:url}); }
+    catch(e) { alert("Error al subir: "+e.message); }
+    setUploadingLogo(false);
+  }
+
+  async function save() {
+    setBusy(true); await onSave(); setBusy(false);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="card p-4 space-y-3">
+        <h3 className="font-display text-base text-cream">Marca</h3>
+        <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Nombre de la app</span>
+          <input value={value.name} onChange={e=>onChange({...value, name:e.target.value})} />
+        </label>
+        <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Subtítulo</span>
+          <input value={value.tagline} onChange={e=>onChange({...value, tagline:e.target.value})} />
+        </label>
+        <div>
+          <span className="text-[11px] uppercase tracking-widest gold-text">Logo</span>
+          <div className="mt-2 flex gap-3 items-center">
+            {value.logo_url && <img src={value.logo_url} alt="" style={{width:56,height:56,objectFit:"cover",borderRadius:8}} />}
+            <input type="file" ref={fileRef} accept="image/*" style={{display:"none"}} onChange={e=>handleLogo(e.target.files[0])} />
+            <button type="button" onClick={()=>fileRef.current.click()} className="btn-ghost text-xs" style={{padding:".5rem .75rem"}} disabled={uploadingLogo}>
+              {uploadingLogo?"Subiendo…":value.logo_url?"Cambiar logo":"Subir logo"}
+            </button>
+            {value.logo_url && <button type="button" onClick={()=>onChange({...value, logo_url:null})} className="text-xs text-red-300">Quitar</button>}
+          </div>
+        </div>
+      </div>
+
+      <div className="card p-4 space-y-3">
+        <h3 className="font-display text-base text-cream">Colores</h3>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Principal</span>
+            <input type="color" value={value.color_primary} onChange={e=>onChange({...value, color_primary:e.target.value})} />
+          </label>
+          <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Fondo</span>
+            <input type="color" value={value.color_bg} onChange={e=>onChange({...value, color_bg:e.target.value})} />
+          </label>
+          <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Superficies</span>
+            <input type="color" value={value.color_surface} onChange={e=>onChange({...value, color_surface:e.target.value})} />
+          </label>
+          <label className="block space-y-1"><span className="text-[11px] uppercase tracking-widest gold-text">Acento</span>
+            <input type="color" value={value.color_accent} onChange={e=>onChange({...value, color_accent:e.target.value})} />
+          </label>
+        </div>
+      </div>
+
+      <button onClick={save} disabled={busy} className="btn-gold w-full">{busy?"Guardando…":"Guardar personalización"}</button>
+    </div>
+  );
+}
+
+function App() {
+  const { user, loading: authLoading } = useAuth();
+  const { profile, loading: profileLoading, reload } = useProfile(user);
+  const { settings, reload: reloadSettings } = useSettings();
+  const [toasts, setToasts] = useState([]);
+
+  const brand = {
+    name: settings['brand.name'] || "Café Zodíaco",
+    logo_url: settings['brand.logo_url'] || null,
+    color_primary: settings['brand.color_primary'] || "#D6AE55",
+    color_bg: settings['brand.color_bg'] || "#090A0F",
+    color_surface: settings['brand.color_surface'] || "#10182F",
+    color_accent: settings['brand.color_accent'] || "#6E5AA6"
+  };
+  useEffect(()=>{ applyTheme(brand); });
+
+  function toast(kind, msg) {
+    const id = Math.random().toString(36).slice(2);
+    setToasts(t=>[...t, {id,kind,msg}]);
+    setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)), 3500);
+  }
+  function dismiss(id) { setToasts(t=>t.filter(x=>x.id!==id)); }
+  async function signOut() { await sb.auth.signOut(); }
+
+  if (authLoading) return <div className="min-h-screen grid place-items-center"><span className="spin"></span></div>;
+
+  if (!user) {
+    return <><LoginBox onDone={()=>reload()}/><Toast toasts={toasts} dismiss={dismiss}/></>;
+  }
+
+  if (profileLoading || !profile) {
+    return <div className="min-h-screen grid place-items-center"><span className="spin"></span></div>;
+  }
+
+  if (profile.role === "customer" || profile.role === "rider") {
+    return (
+      <div className="min-h-screen bg-radial grid place-items-center px-6">
+        <div className="card p-6 max-w-sm text-center space-y-3">
+          <p className="font-display text-xl text-cream">Acceso restringido</p>
+          <p className="text-sm text-cream/70">Esta sección es solo para staff o admin.</p>
+          <a href="/cafe-zodiaco/" className="btn-gold inline-block">Volver a la app</a>
+          <button onClick={signOut} className="btn-ghost w-full">Cerrar sesión</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <AdminApp
+        user={user}
+        profile={profile}
+        onSignOut={signOut}
+        toast={toast}
+        settings={settings}
+        reloadSettings={reloadSettings}
+      />
+      <Toast toasts={toasts} dismiss={dismiss} />
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
