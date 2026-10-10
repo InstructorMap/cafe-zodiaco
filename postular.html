@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#10182F" />
+<title>Postularme como rider · Café Zodíaco</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%2310182F'/%3E%3Ccircle cx='256' cy='256' r='200' fill='none' stroke='%23D6AE55' stroke-width='8'/%3E%3C/svg%3E" />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: { extend: {
+      colors: { night:'#10182F', cosmic:'#263A68', gold:'#D6AE55', cream:'#F4EBDD', ink:'#090A0F', astral:'#6E5AA6' },
+      fontFamily: { display:['"Cormorant Garamond"','Georgia','serif'], sans:['Inter','system-ui','sans-serif'] }
+    }}
+  };
+</script>
+<style>
+  :root { --c-primary:#D6AE55; --c-bg:#090A0F; --c-surface:#10182F; }
+  body { background:var(--c-bg); color:#F4EBDD; font-family:Inter,system-ui,sans-serif; }
+  .bg-radial { background:radial-gradient(120% 90% at 50% 0%, var(--c-surface) 0%, var(--c-bg) 60%, #000 100%); }
+  .card { background:rgba(16,24,47,.75); border:1px solid rgba(38,58,104,.6); border-radius:1rem; backdrop-filter:blur(4px); }
+  .btn-gold { background:var(--c-primary); color:#090A0F; font-weight:600; padding:.75rem 1rem; border-radius:.75rem; transition:filter .15s; }
+  .btn-gold:hover { filter:brightness(1.1); }
+  .btn-gold:disabled { opacity:.5; cursor:not-allowed; }
+  .btn-ghost { border:1px solid #263A68; color:#F4EBDD; font-weight:600; padding:.75rem 1rem; border-radius:.75rem; background:transparent; }
+  .btn-ghost:hover { background:rgba(38,58,104,.4); }
+  input,textarea,select { background:rgba(9,10,15,.6); border:1px solid #263A68; color:#F4EBDD; border-radius:.75rem; padding:.75rem; width:100%; font-size:14px; font-family:inherit; }
+  input:focus,textarea:focus,select:focus { outline:none; border-color:var(--c-primary); }
+  input::placeholder,textarea::placeholder { color:rgba(244,235,221,.4); }
+  .gold-text { color:var(--c-primary); }
+  .fade { animation:fade .25s ease-out both; }
+  @keyframes fade { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:none } }
+  .spin { display:inline-block; width:16px; height:16px; border:2px solid rgba(214,174,85,.3); border-top-color:var(--c-primary); border-radius:50%; animation:s 1s linear infinite; vertical-align:middle; }
+  @keyframes s { to { transform:rotate(360deg) } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+const sb = window.supabase.createClient(
+  "https://weoixcfpfgnxwfvluhlo.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indlb2l4Y2ZwZmdueHdmdmx1aGxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1NzEwOTYsImV4cCI6MjEwNzE0NzA5Nn0.a7pXkHSeVZcx9MAyTdIMF7yf0m0kda7I_rLHqEgvC80"
+);
+
+const cx = (...xs) => xs.filter(Boolean).join(" ");
+
+function App() {
+  const [user, setUser] = useState(null);
+  const [loadingUser, setLoadingUser] = useState(true);
+  const [existing, setExisting] = useState(null);
+  const [loadingExisting, setLoadingExisting] = useState(false);
+
+  // Login form
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [stage, setStage] = useState("email");
+  const [busyAuth, setBusyAuth] = useState(false);
+  const [authErr, setAuthErr] = useState(null);
+
+  // Formulario
+  const [form, setForm] = useState({
+    full_name: "", phone: "", dni: "",
+    vehicle_type: "moto", vehicle_plate: "", zone: "",
+    availability: "", experience: "", notes: ""
+  });
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [formErr, setFormErr] = useState(null);
+
+  useEffect(() => {
+    sb.auth.getSession().then(({data}) => {
+      setUser(data.session?.user || null);
+      setLoadingUser(false);
+    });
+    const { data: { subscription } } = sb.auth.onAuthStateChange((_, s) => setUser(s?.user || null));
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!user) { setExisting(null); return; }
+    setLoadingExisting(true);
+    sb.from("rider_applications")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({data}) => {
+        setExisting(data || null);
+        setLoadingExisting(false);
+      });
+  }, [user]);
+
+  async function sendOtp(e) {
+    e.preventDefault(); setBusyAuth(true); setAuthErr(null);
+    const { error } = await sb.auth.signInWithOtp({
+      email: email.trim().toLowerCase(),
+      options: { shouldCreateUser: true, emailRedirectTo: window.location.href }
+    });
+    setBusyAuth(false);
+    if (error) setAuthErr(error.message); else setStage("otp");
+  }
+  async function verifyOtp(e) {
+    e.preventDefault(); setBusyAuth(true); setAuthErr(null);
+    const { error } = await sb.auth.verifyOtp({
+      email: email.trim().toLowerCase(), token: code.trim(), type: "email"
+    });
+    setBusyAuth(false);
+    if (error) setAuthErr(error.message);
+  }
+
+  async function submitApplication(e) {
+    e.preventDefault();
+    setFormErr(null);
+    if (!form.full_name.trim()) { setFormErr("Poné tu nombre completo."); return; }
+    if (!form.phone.trim()) { setFormErr("Poné tu teléfono."); return; }
+    setSending(true);
+    const payload = {
+      user_id: user.id,
+      full_name: form.full_name.trim(),
+      phone: form.phone.trim(),
+      email: user.email,
+      dni: form.dni.trim() || null,
+      vehicle_type: form.vehicle_type,
+      vehicle_plate: form.vehicle_plate.trim() || null,
+      zone: form.zone.trim() || null,
+      availability: form.availability.trim() || null,
+      experience: form.experience.trim() || null,
+      notes: form.notes.trim() || null
+    };
+    const { error } = await sb.from("rider_applications").insert(payload);
+    setSending(false);
+    if (error) { setFormErr(error.message); return; }
+    setSent(true);
+    sb.from("rider_applications")
+      .select("*").eq("user_id", user.id)
+      .order("created_at", { ascending: false }).limit(1).maybeSingle()
+      .then(({data}) => setExisting(data || null));
+  }
+
+  if (loadingUser) {
+    return (
+      <div className="min-h-screen bg-radial grid place-items-center">
+        <span className="spin"></span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-radial px-4 py-8">
+      <div className="mx-auto w-full max-w-md space-y-5 fade">
+        <header className="text-center space-y-2">
+          <p className="text-[10px] uppercase tracking-[0.28em] gold-text">Café Zodíaco</p>
+          <h1 className="font-display text-3xl text-cream">Postulate como rider</h1>
+          <p className="text-xs text-cream/60">
+            Repartí nuestros pedidos en tu zona. Vos elegís tus horarios.
+          </p>
+        </header>
+
+        {!user && (
+          <div className="card p-5 space-y-4">
+            <p className="text-sm text-cream/80">
+              Para postularte necesitás una cuenta. Poné tu email y te enviamos un código.
+            </p>
+            {stage === "email" && (
+              <form onSubmit={sendOtp} className="space-y-4">
+                <label className="block space-y-1">
+                  <span className="text-xs text-cream/70">Email</span>
+                  <input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@email.com" />
+                </label>
+                <button disabled={busyAuth} className="btn-gold w-full">{busyAuth?"Enviando…":"Enviar código"}</button>
+              </form>
+            )}
+            {stage === "otp" && (
+              <form onSubmit={verifyOtp} className="space-y-4">
+                <label className="block space-y-1">
+                  <span className="text-xs text-cream/70">Código enviado a <b className="gold-text">{email}</b></span>
+                  <input inputMode="numeric" maxLength={6} value={code}
+                    onChange={e=>setCode(e.target.value.replace(/\D/g,""))} placeholder="••••••"
+                    style={{textAlign:"center",fontSize:24,letterSpacing:8}} />
+                </label>
+                <button disabled={busyAuth || code.length!==6} className="btn-gold w-full">
+                  {busyAuth?"Verificando…":"Ingresar"}
+                </button>
+                <button type="button" onClick={()=>{setStage("email");setCode("");setAuthErr(null);}} className="btn-ghost w-full">
+                  Atrás
+                </button>
+              </form>
+            )}
+            {authErr && <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">{authErr}</p>}
+          </div>
+        )}
+
+        {user && loadingExisting && (
+          <div className="card p-6 text-center text-sm text-cream/60">
+            <span className="spin"></span> Cargando…
+          </div>
+        )}
+
+        {user && !loadingExisting && existing && existing.status === "pending" && (
+          <div className="card p-5 space-y-3">
+            <p className="text-[10px] uppercase tracking-[0.28em] gold-text">Tu postulación</p>
+            <h2 className="font-display text-xl text-cream">En revisión</h2>
+            <p className="text-sm text-cream/75">
+              Recibimos tu postulación el {new Date(existing.created_at).toLocaleDateString("es-AR")}.
+              Te vamos a contactar al teléfono <b className="gold-text">{existing.phone}</b> cuando la revisemos.
+            </p>
+            <p className="text-xs text-cream/50">
+              Mientras tanto podés seguir usando la app como cliente.
+            </p>
+          </div>
+        )}
+
+        {user && !loadingExisting && existing && existing.status === "approved" && (
+          <div className="card p-5 space-y-3 border-emerald-500/40">
+            <p className="text-[10px] uppercase tracking-[0.28em] text-emerald-300">¡Aprobado!</p>
+            <h2 className="font-display text-xl text-cream">Ya sos rider</h2>
+            <p className="text-sm text-cream/75">
+              Cerrá sesión y volvé a entrar para ver el panel de repartos en la app principal.
+            </p>
+            <a href="/cafe-zodiaco/" className="btn-gold w-full text-center inline-block">Ir a la app</a>
+          </div>
+        )}
+
+        {user && !loadingExisting && existing && existing.status === "rejected" && (
+          <div className="card p-5 space-y-3 border-red-500/40">
+            <p className="text-[10px] uppercase tracking-[0.28em] text-red-300">Postulación rechazada</p>
+            <p className="text-sm text-cream/75">
+              {existing.rejection_reason || "No pudimos aceptarla en este momento."}
+            </p>
+            <p className="text-xs text-cream/50">Podés volver a postularte en unos días.</p>
+          </div>
+        )}
+
+        {user && !loadingExisting && !existing && (
+          <form onSubmit={submitApplication} className="card p-5 space-y-4">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.28em] gold-text">Datos personales</p>
+              <p className="text-xs text-cream/60 mt-1">Sesión: <b className="gold-text">{user.email}</b></p>
+            </div>
+
+            <label className="block space-y-1"><span className="text-xs text-cream/70">Nombre completo *</span>
+              <input required value={form.full_name} onChange={e=>setForm({...form, full_name:e.target.value})} placeholder="Ej: Juan Pérez" />
+            </label>
+            <label className="block space-y-1"><span className="text-xs text-cream/70">Teléfono *</span>
+              <input required value={form.phone} onChange={e=>setForm({...form, phone:e.target.value})} placeholder="+54 11 1234-5678" />
+            </label>
+            <label className="block space-y-1"><span className="text-xs text-cream/70">DNI (opcional)</span>
+              <input value={form.dni} onChange={e=>setForm({...form, dni:e.target.value})} placeholder="Ej: 12.345.678" />
+            </label>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block space-y-1"><span className="text-xs text-cream/70">Vehículo *</span>
+                <select value={form.vehicle_type} onChange={e=>setForm({...form, vehicle_type:e.target.value})}>
+                  <option value="moto">Moto</option>
+                  <option value="bici">Bicicleta</option>
+                  <option value="auto">Auto</option>
+                  <option value="a_pie">A pie</option>
+                </select>
+              </label>
+              <label className="block space-y-1"><span className="text-xs text-cream/70">Patente (si aplica)</span>
+                <input value={form.vehicle_plate} onChange={e=>setForm({...form, vehicle_plate:e.target.value})} placeholder="AB 123 CD" />
+              </label>
+            </div>
+
+            <label className="block space-y-1"><span className="text-xs text-cream/70">Zona donde te movés</span>
+              <input value={form.zone} onChange={e=>setForm({...form, zone:e.target.value})} placeholder="Ej: Palermo, Recoleta" />
+            </label>
+            <label className="block space-y-1"><span className="text-xs text-cream/70">Disponibilidad horaria</span>
+              <input value={form.availability} onChange={e=>setForm({...form, availability:e.target.value})} placeholder="Ej: Lunes a viernes 18-23hs" />
+            </label>
+            <label className="block space-y-1"><span className="text-xs text-cream/70">Experiencia previa</span>
+              <textarea rows={2} value={form.experience} onChange={e=>setForm({...form, experience:e.target.value})} placeholder="Ej: 2 años en PedidosYa" />
+            </label>
+            <label className="block space-y-1"><span className="text-xs text-cream/70">Comentarios</span>
+              <textarea rows={2} value={form.notes} onChange={e=>setForm({...form, notes:e.target.value})} placeholder="Lo que quieras agregar" />
+            </label>
+
+            {formErr && <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">{formErr}</p>}
+
+            <button type="submit" disabled={sending} className="btn-gold w-full">
+              {sending ? "Enviando…" : "Enviar postulación"}
+            </button>
+            <p className="text-[11px] text-cream/50 text-center">
+              Revisamos tu solicitud en 24-48 hs. Te contactamos por teléfono.
+            </p>
+          </form>
+        )}
+
+        <div className="text-center">
+          <a href="/cafe-zodiaco/" className="text-xs gold-text underline">← Volver a la app</a>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
