@@ -15,6 +15,9 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%2310182F'/%3E%3Ccircle cx='256' cy='256' r='200' fill='none' stroke='%23D6AE55' stroke-width='8'/%3E%3C/svg%3E" />
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
+<!-- Librería para generar imágenes compartibles -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
+
 <script>
   tailwind.config = {
     theme: { extend: {
@@ -87,11 +90,25 @@ const SIGNS = {
 const SIGN_LABEL = {aries:"Aries",tauro:"Tauro",geminis:"Géminis",cancer:"Cáncer",leo:"Leo",virgo:"Virgo",libra:"Libra",escorpio:"Escorpio",sagitario:"Sagitario",capricornio:"Capricornio",acuario:"Acuario",piscis:"Piscis"};
 const SIGN_ICON = {aries:"♈",tauro:"♉",geminis:"♊",cancer:"♋",leo:"♌",virgo:"♍",libra:"♎",escorpio:"♏",sagitario:"♐",capricornio:"♑",acuario:"♒",piscis:"♓"};
 
+// Banco de palabras para aleatoriedad dinámica de los productos
+const ZODIAC_WORDS = ["energía", "foco", "calma", "impulso", "creatividad", "pausa", "disfrute", "fuerza", "renovación", "equilibrio", "inspiración", "misterio", "claridad", "abundancia"];
+
+function getDailyMeanings(cartNames) {
+  if (!cartNames || !cartNames.length) return [];
+  const today = new Date().toISOString().slice(0,10);
+  return cartNames.map(name => {
+    // Función de hash simple para generar un índice consistente según la fecha y el producto
+    const hash = Array.from(today + name).reduce((s, c) => Math.imul(31, s) + c.charCodeAt(0) | 0, 0);
+    return ZODIAC_WORDS[Math.abs(hash) % ZODIAC_WORDS.length];
+  });
+}
+
 function zodiacMsg(sign, cartNames) {
   if (!sign) return { title:"Qué dicen hoy las estrellas", body:"Iniciá sesión y cargá tu fecha de nacimiento para leer tu mensaje del día." };
   const r = SIGNS[sign]; const s = SIGN_LABEL[sign];
   if (!cartNames || cartNames.length===0) return { title:s+" hoy", body:r.t };
-  return { title:s+" · lectura de tu pedido", body:s+" de "+r.el+": "+r.t+" Tu pedido vibra con "+cartNames.slice(0,3).join(", ")+". "+r.c };
+  const meanings = getDailyMeanings(cartNames);
+  return { title:s+" · lectura de tu pedido", body:s+" de "+r.el+": "+r.t+" Tu pedido vibra con "+meanings.slice(0,3).join(", ")+". "+r.c };
 }
 
 function orderTypeLabel(o) {
@@ -354,6 +371,7 @@ function MenuScreen({ profile, cart, toast, settings }) {
   const [cats, setCats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("__all__");
+  const [isSharing, setIsSharing] = useState(false);
 
   useEffect(()=>{ (async ()=>{
     const [p, c] = await Promise.all([
@@ -375,15 +393,53 @@ function MenuScreen({ profile, cart, toast, settings }) {
     toast("success", "Agregado: "+p.name);
   }
 
+  async function shareCard() {
+    setIsSharing(true);
+    const node = document.getElementById("zodiac-capture-area");
+    try {
+      const dataUrl = await window.htmlToImage.toPng(node, { backgroundColor: '#10182F', style: { borderRadius: '1rem', padding: '1rem' } });
+      const blob = await (await fetch(dataUrl)).blob();
+      const file = new File([blob], 'cafe-zodiaco.png', { type: blob.type });
+
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: 'Mi lectura zodiacal',
+          text: '¡Mirá mi lectura zodiacal en Café Zodíaco!',
+          files: [file]
+        });
+      } else {
+        // Fallback: descargar la imagen si no soporta compartir
+        const link = document.createElement('a');
+        link.download = 'cafe-zodiaco.png';
+        link.href = dataUrl;
+        link.click();
+        toast("success", "Tarjeta descargada");
+      }
+    } catch (err) {
+      toast("error", "No pudimos generar la tarjeta.");
+    } finally {
+      setIsSharing(false);
+    }
+  }
+
   if (loading) return <Spinner/>;
 
   return (
     <div className="space-y-4 fade">
-      <section className="card relative overflow-hidden border-astral/40 p-4">
-        <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full blur-2xl" style={{background:"rgba(214,174,85,.1)"}}></div>
-        <p className="text-[10px] uppercase tracking-[0.24em] gold-text">✦ Qué dicen hoy las estrellas</p>
-        <h2 className="mt-1 font-display text-lg text-cream">{msg.title}</h2>
-        <p className="mt-1 text-sm leading-relaxed text-cream/80">{msg.body}</p>
+      <section className="card relative overflow-hidden border-astral/40 flex flex-col">
+        <div id="zodiac-capture-area" className="relative p-4 flex-1">
+          <div className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full blur-2xl" style={{background:"rgba(214,174,85,.1)"}}></div>
+          <p className="text-[10px] uppercase tracking-[0.24em] gold-text">✦ Qué dicen hoy las estrellas</p>
+          <h2 className="mt-1 font-display text-lg text-cream">{msg.title}</h2>
+          <p className="mt-1 text-sm leading-relaxed text-cream/80">{msg.body}</p>
+        </div>
+        {profile?.zodiac_sign && (
+          <div className="border-t border-cosmic/40 bg-ink/30 px-4 py-2 flex justify-end">
+            <button onClick={shareCard} disabled={isSharing} className="text-[11px] gold-text font-medium uppercase tracking-wider flex items-center gap-1">
+              {isSharing ? "Generando..." : "Compartir ↗"}
+            </button>
+          </div>
+        )}
       </section>
 
       <header className="space-y-1">
@@ -626,7 +682,7 @@ function OrdersScreen({ user, goTo, detailId }) {
         <header className="flex items-start justify-between gap-3">
           <div>
             <h1 className="font-display text-2xl text-cream">Pedido #{detail.order_number}</h1>
-            <p className="text-[11px] text-cream/55">{orderTypeLabel(detail)} · {fmtDate(detail.created_at)}</p>
+            <p className="text-[11px] text-cream/55">{(detail.order_type==="delivery"?"Delivery":detail.order_type==="table"?"Mesa "+detail.table_number:"Retiro en local")} · {fmtDate(detail.created_at)}</p>
           </div>
           <span className={cx("rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-widest", STATUS_TONE[detail.status])}>{STATUS_LABEL[detail.status]}</span>
         </header>
@@ -697,7 +753,7 @@ function OrdersScreen({ user, goTo, detailId }) {
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="font-display text-base text-cream">Pedido #{o.order_number}</p>
-                  <p className="text-[11px] text-cream/55">{orderTypeLabel(o)} · {fmtDate(o.created_at)}</p>
+                  <p className="text-[11px] text-cream/55">{o.order_type==="delivery"?"Delivery":o.order_type==="table"?"Mesa "+o.table_number:"Retiro"} · {fmtDate(o.created_at)}</p>
                 </div>
                 <span className={cx("rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-widest", STATUS_TONE[o.status])}>{STATUS_LABEL[o.status]}</span>
               </div>
@@ -929,7 +985,12 @@ function App() {
     color_accent: settings['brand.color_accent'] || "#6E5AA6"
   }), [settings]);
 
-  useEffect(()=>{ applyTheme(brand); }, [brand]);
+  useEffect(()=>{
+    document.documentElement.style.setProperty('--c-primary', brand.color_primary);
+    document.documentElement.style.setProperty('--c-bg', brand.color_bg);
+    document.documentElement.style.setProperty('--c-surface', brand.color_surface);
+    document.documentElement.style.setProperty('--c-accent', brand.color_accent);
+  }, [brand]);
 
   useEffect(()=>{
     const signLabel = profile?.zodiac_sign ? SIGN_LABEL[profile.zodiac_sign] : null;
@@ -944,11 +1005,6 @@ function App() {
     if (profile.role === "rider") {
       window.location.replace("/cafe-zodiaco/rider.html");
     }
-    /* Opcional: redirigir staff/admin a admin.html
-       if (profile.role === "staff" || profile.role === "admin") {
-         window.location.replace("/cafe-zodiaco/admin.html");
-       }
-    */
   }, [profile]);
 
   function toast(kind, msg) {
