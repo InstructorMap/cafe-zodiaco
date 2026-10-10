@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#10182F" />
+<title>Repartos · Café Zodíaco</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%2310182F'/%3E%3Ccircle cx='256' cy='256' r='200' fill='none' stroke='%23D6AE55' stroke-width='8'/%3E%3C/svg%3E" />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: { extend: {
+      colors: { night:'#10182F', cosmic:'#263A68', gold:'#D6AE55', cream:'#F4EBDD', ink:'#090A0F', astral:'#6E5AA6' },
+      fontFamily: { display:['"Cormorant Garamond"','Georgia','serif'], sans:['Inter','system-ui','sans-serif'] }
+    }}
+  };
+</script>
+<style>
+  :root { --c-primary:#D6AE55; --c-bg:#090A0F; --c-surface:#10182F; --c-accent:#6E5AA6; }
+  body { background:var(--c-bg); color:#F4EBDD; font-family:Inter,system-ui,sans-serif; overscroll-behavior-y:none; -webkit-tap-highlight-color:transparent; }
+  .bg-radial { background:radial-gradient(120% 90% at 50% 0%, var(--c-surface) 0%, var(--c-bg) 60%, #000 100%); }
+  .card { background:rgba(16,24,47,.7); border:1px solid rgba(38,58,104,.6); border-radius:1rem; backdrop-filter:blur(4px); }
+  .btn-gold { background:var(--c-primary); color:#090A0F; font-weight:600; padding:.75rem 1rem; border-radius:.75rem; transition:filter .15s; }
+  .btn-gold:hover { filter:brightness(1.1); }
+  .btn-gold:disabled { opacity:.5; cursor:not-allowed; }
+  .btn-ghost { border:1px solid #263A68; color:#F4EBDD; font-weight:600; padding:.75rem 1rem; border-radius:.75rem; background:transparent; }
+  .btn-ghost:hover { background:rgba(38,58,104,.4); }
+  input,textarea,select { background:rgba(9,10,15,.6); border:1px solid #263A68; color:#F4EBDD; border-radius:.75rem; padding:.75rem; width:100%; font-size:14px; font-family:inherit; }
+  input:focus { outline:none; border-color:var(--c-primary); }
+  .spin { display:inline-block; width:16px; height:16px; border:2px solid rgba(214,174,85,.3); border-top-color:var(--c-primary); border-radius:50%; animation:s 1s linear infinite; vertical-align:middle; }
+  @keyframes s { to { transform:rotate(360deg) } }
+  .gold-text { color:var(--c-primary); }
+  .astral-text { color:var(--c-accent); }
+  .fade { animation:fade .25s ease-out both; }
+  @keyframes fade { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:none } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useCallback } = React;
+const sb = window.supabase.createClient(
+  "https://weoixcfpfgnxwluhlo.supabase.co".replace("wluhlo","xwfvluhlo"),
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indlb2l4Y2ZwZmdueHdmdmx1aGxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE1NzEwOTYsImV4cCI6MjEwNzE0NzA5Nn0.a7pXkHSeVZcx9MAyTdIMF7yf0m0kda7I_rLHqEgvC80"
+);
+
+const cx = (...xs) => xs.filter(Boolean).join(" ");
+const fmt = (c) => new Intl.NumberFormat("es-AR",{style:"currency",currency:"ARS",maximumFractionDigits:0}).format((c||0)/100);
+const fmtDate = (iso) => new Intl.DateTimeFormat("es-AR",{dateStyle:"medium",timeStyle:"short"}).format(new Date(iso));
+
+const STATUS_LABEL = {ready:"Listo para retirar",on_the_way:"En camino",delivered:"Entregado"};
+
+function applyTheme(b) {
+  document.documentElement.style.setProperty("--c-primary", b.color_primary || "#D6AE55");
+  document.documentElement.style.setProperty("--c-bg", b.color_bg || "#090A0F");
+  document.documentElement.style.setProperty("--c-surface", b.color_surface || "#10182F");
+  document.documentElement.style.setProperty("--c-accent", b.color_accent || "#6E5AA6");
+}
+
+function mapsUrl(address) {
+  if (!address || typeof address !== "object") return null;
+  const a = address;
+  const q = [
+    a.street && `${a.street} ${a.number || ""}`.trim(),
+    a.city,
+    a.notes && `(${a.notes})`
+  ].filter(Boolean).join(", ");
+  if (!q) return null;
+  return "https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(q);
+}
+
+function formatAddress(addr) {
+  if (!addr || typeof addr !== "object") return "";
+  const a = addr;
+  return [
+    a.street && `${a.street} ${a.number || ""}`.trim(),
+    a.city,
+    a.notes
+  ].filter(Boolean).join(" · ");
+}
+
+function useAuth() {
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    sb.auth.getSession().then(({data}) => { setSession(data.session||null); setLoading(false); });
+    const {data:{subscription}} = sb.auth.onAuthStateChange((_,s)=>setSession(s));
+    return ()=>subscription.unsubscribe();
+  }, []);
+  return { session, user: session?.user||null, loading };
+}
+
+function useProfile(user) {
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const load = useCallback(async ()=>{
+    if (!user) { setProfile(null); return; }
+    setLoading(true);
+    const {data} = await sb.from("profiles").select("*").eq("id",user.id).maybeSingle();
+    setProfile(data||null);
+    setLoading(false);
+  }, [user]);
+  useEffect(()=>{ load(); },[load]);
+  return { profile, loading, reload: load };
+}
+
+function useSettings() {
+  const [settings, setSettings] = useState({});
+  const load = useCallback(async ()=>{
+    const { data } = await sb.from("app_settings").select("key,value");
+    const map = {};
+    for (const row of data||[]) map[row.key] = row.value;
+    setSettings(map);
+  }, []);
+  useEffect(()=>{ load(); }, [load]);
+  return settings;
+}
+
+function Spinner({label="Cargando…"}) {
+  return <div className="flex flex-col items-center gap-3 py-12 text-cream/60 text-xs"><span className="spin"></span>{label}</div>;
+}
+
+function Toast({toasts, dismiss}) {
+  if (!toasts.length) return null;
+  return (
+    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 mx-auto flex max-w-md flex-col gap-2 px-4">
+      {toasts.map(t=>(
+        <button key={t.id} onClick={()=>dismiss(t.id)} className={cx("pointer-events-auto rounded-xl border px-4 py-3 text-left text-sm backdrop-blur shadow-xl",
+          t.kind==="success" && "border-emerald-500/40 bg-emerald-500/15 text-emerald-100",
+          t.kind==="error" && "border-red-500/40 bg-red-500/15 text-red-100",
+          t.kind==="info" && "border-astral/60 bg-astral/15 text-cream")}>
+          {t.msg}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function LoginBox({ onDone }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [mode, setMode] = useState("password");
+  const [stage, setStage] = useState("email");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  async function loginPwd(e) {
+    e.preventDefault(); setBusy(true); setErr(null);
+    const { error } = await sb.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
+    setBusy(false);
+    if (error) setErr(error.message); else onDone && onDone();
+  }
+  async function sendOtp(e) {
+    e.preventDefault(); setBusy(true); setErr(null);
+    const { error } = await sb.auth.signInWithOtp({ email: email.trim().toLowerCase(), options:{ shouldCreateUser:true } });
+    setBusy(false);
+    if (error) setErr(error.message); else setStage("otp");
+  }
+  async function verifyOtp(e) {
+    e.preventDefault(); setBusy(true); setErr(null);
+    const { error } = await sb.auth.verifyOtp({ email: email.trim().toLowerCase(), token: code.trim(), type:"email" });
+    setBusy(false);
+    if (error) setErr(error.message); else onDone && onDone();
+  }
+
+  return (
+    <div className="min-h-screen bg-radial px-6 py-12 flex items-center justify-center">
+      <div className="mx-auto w-full max-w-sm space-y-6 fade">
+        <div className="text-center">
+          <p className="text-[10px] uppercase tracking-[0.28em] gold-text">Café Zodíaco</p>
+          <h1 className="font-display text-3xl text-cream mt-1">Panel de repartos</h1>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={()=>{setMode("password"); setErr(null);}}
+            className={cx("rounded-xl border px-3 py-2 text-sm font-medium",
+              mode==="password"?"border-gold bg-gold/15 gold-text":"border-cosmic bg-night/40 text-cream/70")}>
+            Contraseña
+          </button>
+          <button onClick={()=>{setMode("otp"); setErr(null); setStage("email");}}
+            className={cx("rounded-xl border px-3 py-2 text-sm font-medium",
+              mode==="otp"?"border-gold bg-gold/15 gold-text":"border-cosmic bg-night/40 text-cream/70")}>
+            Código
+          </button>
+        </div>
+
+        <div className="card p-5 space-y-4">
+          {mode==="password" && (
+            <form onSubmit={loginPwd} className="space-y-4">
+              <label className="block space-y-1"><span className="text-xs text-cream/70">Email</span>
+                <input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@email.com" />
+              </label>
+              <label className="block space-y-1"><span className="text-xs text-cream/70">Contraseña</span>
+                <input type="password" required value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" />
+              </label>
+              <button disabled={busy} className="btn-gold w-full">{busy?"Ingresando…":"Ingresar"}</button>
+            </form>
+          )}
+          {mode==="otp" && stage==="email" && (
+            <form onSubmit={sendOtp} className="space-y-4">
+              <label className="block space-y-1"><span className="text-xs text-cream/70">Email</span>
+                <input type="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="tu@email.com" />
+              </label>
+              <button disabled={busy} className="btn-gold w-full">{busy?"Enviando…":"Enviar código"}</button>
+            </form>
+          )}
+          {mode==="otp" && stage==="otp" && (
+            <form onSubmit={verifyOtp} className="space-y-4">
+              <label className="block space-y-1">
+                <span className="text-xs text-cream/70">Código enviado a <b className="gold-text">{email}</b></span>
+                <input inputMode="numeric" maxLength={6} value={code}
+                  onChange={e=>setCode(e.target.value.replace(/\D/g,""))} placeholder="••••••"
+                  style={{textAlign:"center",fontSize:24,letterSpacing:8}} />
+              </label>
+              <button disabled={busy||code.length!==6} className="btn-gold w-full">{busy?"Verificando…":"Ingresar"}</button>
+              <button type="button" onClick={()=>{setStage("email");setCode("");setErr(null);}} className="btn-ghost w-full">Atrás</button>
+            </form>
+          )}
+          {err && <p className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">{err}</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function useRider(user) {
+  const [available, setAvailable] = useState([]);
+  const [mine, setMine] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState(null);
+
+  const load = useCallback(async () => {
+    if (!user) { setAvailable([]); setMine([]); setLoading(false); return; }
+    setLoading(true);
+
+    const [av, mn] = await Promise.all([
+      sb.from("orders")
+        .select("id, order_number, status, total_cents, created_at, delivery_address, customer_notes, order_type")
+        .eq("order_type", "delivery")
+        .eq("status", "ready")
+        .is("rider_id", null)
+        .order("created_at", { ascending: true })
+        .limit(50),
+      sb.from("orders")
+        .select("id, order_number, status, total_cents, created_at, delivery_address, customer_notes, order_type, rider_id")
+        .eq("rider_id", user.id)
+        .in("status", ["on_the_way", "delivered"])
+        .order("created_at", { ascending: false })
+        .limit(50)
+    ]);
+
+    setAvailable(av.data || []);
+    setMine(mn.data || []);
+    setLoading(false);
+  }, [user]);
+
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (!user) return;
+    const t = setInterval(() => { load(); }, 30000);
+    return () => clearInterval(t);
+  }, [user, load]);
+
+  async function claim(orderId) {
+    setBusyId(orderId);
+    const { error } = await sb.rpc("claim_order", { p_order_id: orderId });
+    setBusyId(null);
+    if (error) throw error;
+    await load();
+  }
+  async function deliver(orderId) {
+    setBusyId(orderId);
+    const { error } = await sb.rpc("rider_mark_delivered", { p_order_id: orderId });
+    setBusyId(null);
+    if (error) throw error;
+    await load();
+  }
+
+  return { available, mine, loading, busyId, claim, deliver, reload: load };
+}
+
+function RiderApp({ user, profile, onSignOut, toast }) {
+  const rider = useRider(user);
+  const [tab, setTab] = useState("available");
+
+  const list = tab === "available" ? rider.available : rider.mine;
+
+  async function handleClaim(orderId) {
+    try {
+      await rider.claim(orderId);
+      toast("success", "Viaje tomado. ¡En camino!");
+      setTab("mine");
+    } catch (e) {
+      toast("error", e.message || "No se pudo tomar el pedido");
+    }
+  }
+  async function handleDeliver(orderId) {
+    try {
+      await rider.deliver(orderId);
+      toast("success", "Pedido entregado");
+    } catch (e) {
+      toast("error", e.message || "No se pudo marcar entregado");
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-radial">
+      <header className="sticky top-0 z-30 border-b border-cosmic/50 bg-ink/85 backdrop-blur-md">
+        <div className="mx-auto flex max-w-md items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--c-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 12h3l2-5h8l2 5h3M5 12v6h14v-6M9 18h6"/>
+            </svg>
+            <div className="leading-none">
+              <p className="font-display text-lg text-cream">Repartos</p>
+              <p className="text-[10px] uppercase tracking-[0.18em] gold-text">{profile.full_name || user.email.split("@")[0]}</p>
+            </div>
+          </div>
+          <button onClick={onSignOut} className="text-xs text-cream/60 underline hover:text-cream">Salir</button>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-md px-4 py-5 space-y-4">
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => setTab("available")}
+            className={cx(
+              "rounded-xl border px-3 py-3 text-sm font-medium",
+              tab === "available"
+                ? "border-gold bg-gold/15 gold-text"
+                : "border-cosmic bg-night/40 text-cream/70"
+            )}
+          >
+            Disponibles ({rider.available.length})
+          </button>
+          <button
+            onClick={() => setTab("mine")}
+            className={cx(
+              "rounded-xl border px-3 py-3 text-sm font-medium",
+              tab === "mine"
+                ? "border-gold bg-gold/15 gold-text"
+                : "border-cosmic bg-night/40 text-cream/70"
+            )}
+          >
+            Mis viajes ({rider.mine.length})
+          </button>
+        </div>
+
+        {rider.loading && <Spinner label="Buscando pedidos…" />}
+
+        {!rider.loading && list.length === 0 && (
+          <div className="card p-8 text-center text-sm text-cream/60">
+            {tab === "available"
+              ? "No hay pedidos listos para repartir ahora."
+              : "Todavía no tomaste ningún viaje."}
+          </div>
+        )}
+
+        {!rider.loading && list.map(o => {
+          const maps = mapsUrl(o.delivery_address);
+          const isMine = !!o.rider_id || tab === "mine";
+          return (
+            <article key={o.id} className="card p-4 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-display text-lg text-cream">Pedido #{o.order_number}</p>
+                  <p className="text-[11px] text-cream/55">{fmtDate(o.created_at)}</p>
+                </div>
+                <span className={cx(
+                  "rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-widest",
+                  o.status==="ready" && "border-emerald-500/40 bg-emerald-500/15 text-emerald-200",
+                  o.status==="on_the_way" && "border-sky-500/40 bg-sky-500/15 text-sky-200",
+                  o.status==="delivered" && "border-emerald-500/40 bg-emerald-500/15 text-emerald-200"
+                )}>
+                  {STATUS_LABEL[o.status] || o.status}
+                </span>
+              </div>
+
+              <div className="text-sm space-y-1.5">
+                <p className="font-semibold gold-text text-base">{fmt(o.total_cents)}</p>
+                {o.delivery_address && (
+                  <p className="text-[13px] text-cream/85 leading-relaxed">
+                    📍 {formatAddress(o.delivery_address)}
+                  </p>
+                )}
+                {o.customer_notes && (
+                  <p className="text-[12px] text-cream/60">
+                    📝 {o.customer_notes}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                {maps && (
+                  <a
+                    href={maps}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn-ghost text-xs"
+                    style={{ padding: ".5rem .75rem" }}
+                  >
+                    Abrir Maps →
+                  </a>
+                )}
+                {!isMine && (
+                  <button
+                    onClick={() => handleClaim(o.id)}
+                    disabled={rider.busyId === o.id}
+                    className="btn-gold text-xs"
+                    style={{ padding: ".5rem .75rem" }}
+                  >
+                    {rider.busyId === o.id ? "Tomando…" : "Tomar viaje"}
+                  </button>
+                )}
+                {isMine && o.status === "on_the_way" && (
+                  <button
+                    onClick={() => handleDeliver(o.id)}
+                    disabled={rider.busyId === o.id}
+                    className="btn-gold text-xs"
+                    style={{ padding: ".5rem .75rem" }}
+                  >
+                    {rider.busyId === o.id ? "Guardando…" : "Marcar entregado"}
+                  </button>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </main>
+    </div>
+  );
+}
+
+function App() {
+  const { user, loading: authLoading } = useAuth();
+  const { profile, loading: profileLoading } = useProfile(user);
+  const settings = useSettings();
+  const [toasts, setToasts] = useState([]);
+
+  const brand = {
+    color_primary: settings['brand.color_primary'] || "#D6AE55",
+    color_bg: settings['brand.color_bg'] || "#090A0F",
+    color_surface: settings['brand.color_surface'] || "#10182F",
+    color_accent: settings['brand.color_accent'] || "#6E5AA6"
+  };
+  useEffect(()=>{ applyTheme(brand); });
+
+  function toast(kind, msg) {
+    const id = Math.random().toString(36).slice(2);
+    setToasts(t=>[...t, {id,kind,msg}]);
+    setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)), 3500);
+  }
+  function dismiss(id) { setToasts(t=>t.filter(x=>x.id!==id)); }
+  async function signOut() { await sb.auth.signOut(); }
+
+  if (authLoading) return <div className="min-h-screen grid place-items-center"><span className="spin"></span></div>;
+
+  if (!user) {
+    return <><LoginBox onDone={()=>{}}/><Toast toasts={toasts} dismiss={dismiss}/></>;
+  }
+
+  if (profileLoading || !profile) {
+    return <div className="min-h-screen grid place-items-center"><span className="spin"></span></div>;
+  }
+
+  if (profile.role !== "rider") {
+    return (
+      <div className="min-h-screen bg-radial grid place-items-center px-6">
+        <div className="card p-6 max-w-sm text-center space-y-3">
+          <p className="font-display text-xl text-cream">Acceso restringido</p>
+          <p className="text-sm text-cream/70">Esta sección es solo para repartidores.</p>
+          <a href="/cafe-zodiaco/" className="btn-gold inline-block">Ir a la app</a>
+          <button onClick={signOut} className="btn-ghost w-full">Cerrar sesión</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <RiderApp user={user} profile={profile} onSignOut={signOut} toast={toast} />
+      <Toast toasts={toasts} dismiss={dismiss} />
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
