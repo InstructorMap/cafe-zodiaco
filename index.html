@@ -15,7 +15,6 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%2310182F'/%3E%3Ccircle cx='256' cy='256' r='200' fill='none' stroke='%23D6AE55' stroke-width='8'/%3E%3C/svg%3E" />
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <script src="https://cdn.tailwindcss.com"></script>
-<!-- Librería para generar imágenes compartibles -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js"></script>
 
 <script>
@@ -53,19 +52,21 @@
   .gold-text { color:var(--c-primary); }
   .astral-text { color:var(--c-accent); }
 
-  /* Contenedor off-screen para generación de tarjeta vertical 9:16
-     position:fixed + z-index:-999 + opacity:0 lo mantiene fuera de la vista
-     pero con layout real para que html-to-image pueda leerlo */
+  /* Contenedor off-screen para generación de tarjeta vertical 9:16.
+     Se posiciona top-left pero con z-index muy negativo y opacity 0.001
+     (algunos navegadores Samsung no pintan opacity 0) y translateZ(0)
+     para forzar compositing en GPU. */
   .share-capture {
     position: fixed;
     top: 0;
-    left: -99999px;
+    left: 0;
     width: 540px;
     height: 960px;
-    z-index: -1;
-    opacity: 0;
+    z-index: -9999;
+    opacity: 0.001;
     pointer-events: none;
     overflow: hidden;
+    transform: translateZ(0);
   }
 </style>
 </head>
@@ -192,15 +193,18 @@ function Spinner({label="Cargando…"}) {
 }
 
 /* Off-screen template 9:16 para compartir.
-   Reglas de compatibilidad Samsung/Android:
-   - Sin backdrop-filter ni blur.
-   - Colores sólidos y opacidades fijas.
-   - Fuentes del sistema resueltas (Inter/Cormorant ya se cargan arriba).
-   - Todo con estilos inline seguros. */
-function ShareCard({ message, sign, brandName, brandTagline, logoSvg }) {
+   Compatibilidad Samsung/Android:
+   - Estilos 100% inline (no depende de Tailwind ni del stylesheet externo).
+   - Fuentes con fallback del sistema para que siempre rendericen.
+   - Sin backdrop-filter, sin blur, sin gradientes complejos.
+   - Opacidad 0.001 + translateZ(0) para forzar compositing. */
+function ShareCard({ message, sign, brandName, brandTagline }) {
   if (!sign) return null;
   const label = SIGN_LABEL[sign];
   const icon = SIGN_ICON[sign];
+
+  const fontDisplay = "'Cormorant Garamond', Georgia, 'Times New Roman', serif";
+  const fontBody = "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif";
 
   return (
     <div
@@ -209,90 +213,109 @@ function ShareCard({ message, sign, brandName, brandTagline, logoSvg }) {
       style={{
         width: "540px",
         height: "960px",
+        minWidth: "540px",
+        minHeight: "960px",
         background: "#10182F",
         color: "#F4EBDD",
-        fontFamily: "Inter, system-ui, sans-serif",
+        fontFamily: fontBody,
         display: "flex",
         flexDirection: "column",
         padding: "48px 40px",
         boxSizing: "border-box",
-        position: "relative"
+        position: "fixed",
+        top: 0,
+        left: 0,
+        zIndex: -9999,
+        opacity: 0.001,
+        pointerEvents: "none",
+        overflow: "hidden",
+        transform: "translateZ(0)"
       }}
     >
-      {/* Header */}
-      <div style={{display:"flex", alignItems:"center", gap:"14px", marginBottom:"32px"}}>
+      {/* Header con logo */}
+      <div style={{ display:"flex", alignItems:"center", gap:"14px", marginBottom:"28px" }}>
         <div style={{
-          width:"52px", height:"52px", borderRadius:"12px",
+          width:"56px", height:"56px", borderRadius:"14px",
           background:"#263A68", display:"flex", alignItems:"center",
-          justifyContent:"center", color:"#D6AE55", fontSize:"28px"
+          justifyContent:"center", flexShrink: 0
         }}>
-          <svg width="34" height="34" viewBox="0 0 512 512">
+          <svg width="38" height="38" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
             <circle cx="256" cy="256" r="200" fill="none" stroke="#D6AE55" strokeWidth="14"/>
-            <path d="M168 232h150v70a66 66 0 0 1-66 66h-18a66 66 0 0 1-66-66v-70z" fill="none" stroke="#F4EBDD" strokeWidth="20"/>
-            <path d="M318 250h22a34 34 0 0 1 0 68h-22" fill="none" stroke="#F4EBDD" strokeWidth="20"/>
+            <path d="M168 232h150v70a66 66 0 0 1-66 66h-18a66 66 0 0 1-66-66v-70z" fill="none" stroke="#F4EBDD" strokeWidth="20" strokeLinejoin="round"/>
+            <path d="M318 250h22a34 34 0 0 1 0 68h-22" fill="none" stroke="#F4EBDD" strokeWidth="20" strokeLinecap="round"/>
           </svg>
         </div>
-        <div>
-          <div style={{fontFamily:"'Cormorant Garamond', Georgia, serif", fontSize:"26px", fontWeight:700, color:"#F4EBDD", lineHeight:1}}>
+        <div style={{ display:"flex", flexDirection:"column" }}>
+          <div style={{
+            fontFamily: fontDisplay,
+            fontSize:"28px", fontWeight:700, color:"#F4EBDD",
+            lineHeight:1, letterSpacing:"-0.5px"
+          }}>
             {brandName || "Café Zodíaco"}
           </div>
-          <div style={{fontSize:"11px", letterSpacing:"3px", textTransform:"uppercase", color:"#D6AE55", marginTop:"4px"}}>
+          <div style={{
+            fontSize:"11px", letterSpacing:"3px", textTransform:"uppercase",
+            color:"#D6AE55", marginTop:"6px", fontWeight: 500
+          }}>
             {brandTagline || "Café & Zodiaco"}
           </div>
         </div>
       </div>
 
-      {/* Centro Visual — símbolo gigante */}
+      {/* Centro visual — símbolo gigante */}
       <div style={{
         display:"flex", alignItems:"center", justifyContent:"center",
-        flex:"0 0 auto", padding:"20px 0 28px"
+        flex:"0 0 auto", padding:"16px 0 24px"
       }}>
         <div style={{
           width:"220px", height:"220px", borderRadius:"50%",
           background:"#263A68",
           border:"4px solid #6E5AA6",
           display:"flex", alignItems:"center", justifyContent:"center",
-          fontSize:"140px", color:"#D6AE55", lineHeight:1
+          fontSize:"130px", color:"#D6AE55", lineHeight:1,
+          fontFamily: fontBody, fontWeight: 400
         }}>
           {icon}
         </div>
       </div>
 
       {/* Signo */}
-      <div style={{textAlign:"center", marginBottom:"24px"}}>
+      <div style={{ textAlign:"center", marginBottom:"22px" }}>
         <div style={{
           fontSize:"12px", letterSpacing:"5px", textTransform:"uppercase",
-          color:"#6E5AA6", marginBottom:"6px"
+          color:"#6E5AA6", marginBottom:"8px", fontWeight: 600
         }}>
           Tu signo
         </div>
         <div style={{
-          fontFamily:"'Cormorant Garamond', Georgia, serif",
-          fontSize:"44px", fontWeight:700, color:"#F4EBDD", lineHeight:1
+          fontFamily: fontDisplay,
+          fontSize:"46px", fontWeight:700, color:"#F4EBDD", lineHeight:1
         }}>
           {label}
         </div>
       </div>
 
-      {/* Contenido — lectura zodiacal */}
+      {/* Lectura zodiacal */}
       <div style={{
         background:"#090A0F",
         border:"2px solid #263A68",
         borderRadius:"20px",
-        padding:"28px 24px",
+        padding:"26px 22px",
         flex:"1 1 auto",
         display:"flex", flexDirection:"column",
-        justifyContent:"center"
+        justifyContent:"center",
+        minHeight: 0
       }}>
         <div style={{
           fontSize:"11px", letterSpacing:"4px", textTransform:"uppercase",
-          color:"#D6AE55", marginBottom:"14px", textAlign:"center"
+          color:"#D6AE55", marginBottom:"14px", textAlign:"center", fontWeight: 600
         }}>
           ✦ {message.title}
         </div>
         <p style={{
           fontSize:"19px", lineHeight:"1.5",
-          color:"#F4EBDD", margin:0, textAlign:"center"
+          color:"#F4EBDD", margin:0, textAlign:"center",
+          fontFamily: fontBody
         }}>
           {message.body}
         </p>
@@ -300,17 +323,23 @@ function ShareCard({ message, sign, brandName, brandTagline, logoSvg }) {
 
       {/* Footer CTA */}
       <div style={{
-        marginTop:"24px", padding:"20px 18px",
+        marginTop:"22px", padding:"18px 16px",
         background:"#D6AE55", color:"#090A0F",
         borderRadius:"16px", textAlign:"center"
       }}>
-        <div style={{fontSize:"12px", letterSpacing:"3px", textTransform:"uppercase", fontWeight:700, opacity:0.75}}>
+        <div style={{
+          fontSize:"11px", letterSpacing:"3px", textTransform:"uppercase",
+          fontWeight:700, opacity:0.75
+        }}>
           Descubrí tu mensaje
         </div>
-        <div style={{fontSize:"19px", fontWeight:700, marginTop:"6px", fontFamily:"'Cormorant Garamond', Georgia, serif"}}>
+        <div style={{
+          fontSize:"22px", fontWeight:700, marginTop:"6px",
+          fontFamily: fontDisplay, lineHeight:1
+        }}>
           Café Zodíaco
         </div>
-        <div style={{fontSize:"13px", marginTop:"6px", opacity:0.85}}>
+        <div style={{ fontSize:"13px", marginTop:"8px", opacity:0.85, fontWeight: 500 }}>
           instructormap.github.io/cafe-zodiaco
         </div>
       </div>
@@ -506,7 +535,7 @@ function LoginScreen({ onDone }) {
   );
 }
 
-/* Helper: convierte dataURL a Blob sin fetch (compatibilidad Samsung Internet viejo) */
+/* Convierte dataURL a Blob sin fetch (compatibilidad Samsung Internet viejo) */
 function dataUrlToBlob(dataUrl) {
   const parts = dataUrl.split(",");
   const mime = (parts[0].match(/:(.*?);/) || [])[1] || "image/png";
@@ -517,15 +546,52 @@ function dataUrlToBlob(dataUrl) {
   return new Blob([u8], { type: mime });
 }
 
-/* Helper: descarga el PNG en el navegador (fallback universal) */
-function downloadDataUrl(dataUrl, filename) {
+/* Intenta compartir vía Web Share; si falla, descarga el PNG */
+async function tryShareOrDownload(blob, filename, toast) {
+  try {
+    if (
+      typeof navigator !== "undefined" &&
+      navigator.share &&
+      navigator.canShare &&
+      typeof File !== "undefined"
+    ) {
+      const file = new File([blob], filename, { type: "image/png" });
+      let canShareFiles = false;
+      try {
+        canShareFiles = navigator.canShare({ files: [file] });
+      } catch (e) {
+        canShareFiles = false;
+      }
+
+      if (canShareFiles) {
+        try {
+          await navigator.share({
+            title: "Mi lectura zodiacal",
+            text: "¡Mirá mi lectura zodiacal en Café Zodíaco!",
+            files: [file]
+          });
+          toast("success", "Tarjeta compartida");
+          return;
+        } catch (shareErr) {
+          if (shareErr && shareErr.name === "AbortError") return;
+          console.warn("Web Share falló:", shareErr);
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Web Share no disponible:", e);
+  }
+
+  const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
+  link.href = url;
   link.download = filename;
-  link.href = dataUrl;
   link.rel = "noopener";
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  toast("success", "Tarjeta descargada");
 }
 
 function MenuScreen({ profile, cart, toast, settings }) {
@@ -561,60 +627,86 @@ function MenuScreen({ profile, cart, toast, settings }) {
     if (!sign) { toast("info", "Cargá tu fecha de nacimiento para generar la tarjeta."); return; }
 
     setSharing(true);
-    const node = document.getElementById("zodiac-capture-area");
-    if (!node) { toast("error", "No se encontró el área de captura."); setSharing(false); return; }
-
-    const filename = "cafe-zodiaco-" + sign + ".png";
-    let dataUrl = null;
 
     try {
-      dataUrl = await window.htmlToImage.toPng(node, {
+      /* Esperar a que las fuentes estén cargadas — crítico en Samsung/Android */
+      if (document.fonts && document.fonts.ready) {
+        try { await document.fonts.ready; } catch (e) { /* no-op */ }
+      }
+
+      /* Esperar 2 frames para que el navegador pinte el nodo off-screen */
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      await new Promise(r => setTimeout(r, 150));
+
+      const node = document.getElementById("zodiac-capture-area");
+      if (!node) { toast("error", "No se encontró el área de captura."); setSharing(false); return; }
+
+      const filename = "cafe-zodiaco-" + sign + ".png";
+
+      const opts = {
         width: 540,
         height: 960,
         pixelRatio: 2,
         cacheBust: true,
         backgroundColor: "#10182F",
+        skipFonts: false,
+        fontEmbedCSS: "",
         style: {
-          transform: "none",
+          transform: "translateZ(0)",
           margin: "0",
           top: "0",
           left: "0",
-          opacity: "1"
+          opacity: "1",
+          position: "static"
         }
-      });
-    } catch (e) {
-      console.warn("html-to-image falló, intento con canvas:", e);
-    }
+      };
 
-    // Fallback 1: intenta con toBlob directamente
-    if (!dataUrl) {
+      let blob = null;
+
+      /* Intento 1: toBlob directo */
       try {
-        const blob = await window.htmlToImage.toBlob(node, { width:540, height:960, pixelRatio:2, backgroundColor:"#10182F" });
-        if (blob) {
-          await tryShareOrDownload(blob, filename, toast);
-          setSharing(false);
-          return;
+        blob = await window.htmlToImage.toBlob(node, opts);
+      } catch (e1) {
+        console.warn("toBlob falló:", e1);
+      }
+
+      /* Intento 2: toPng → blob */
+      if (!blob) {
+        try {
+          const dataUrl = await window.htmlToImage.toPng(node, opts);
+          if (dataUrl && dataUrl.length > 100) {
+            blob = dataUrlToBlob(dataUrl);
+          }
+        } catch (e2) {
+          console.warn("toPng falló:", e2);
         }
-      } catch (e) {
-        console.warn("toBlob falló:", e);
       }
-    }
 
-    // Fallback 2: descarga directa del dataUrl
-    if (dataUrl) {
-      try {
-        const blob = dataUrlToBlob(dataUrl);
-        await tryShareOrDownload(blob, filename, toast);
-      } catch (e) {
-        console.warn("Share falló, descargo directo:", e);
-        downloadDataUrl(dataUrl, filename);
-        toast("success", "Tarjeta descargada");
+      /* Intento 3: canvas directo */
+      if (!blob) {
+        try {
+          const canvas = await window.htmlToImage.toCanvas(node, opts);
+          blob = await new Promise((resolve, reject) => {
+            canvas.toBlob(b => b ? resolve(b) : reject(new Error("toBlob null")), "image/png", 0.95);
+          });
+        } catch (e3) {
+          console.warn("toCanvas falló:", e3);
+        }
       }
-    } else {
-      toast("error", "No se pudo generar la tarjeta en este dispositivo.");
-    }
 
-    setSharing(false);
+      if (!blob) {
+        toast("error", "No se pudo generar la tarjeta. Probá desde Chrome.");
+        setSharing(false);
+        return;
+      }
+
+      await tryShareOrDownload(blob, filename, toast);
+    } catch (err) {
+      console.error("shareCard error:", err);
+      toast("error", "Error al generar la tarjeta.");
+    } finally {
+      setSharing(false);
+    }
   }
 
   if (loading) return <Spinner/>;
@@ -675,50 +767,6 @@ function MenuScreen({ profile, cart, toast, settings }) {
       </div>
     </div>
   );
-}
-
-/* Intenta compartir vía Web Share; si falla, descarga el PNG */
-async function tryShareOrDownload(blob, filename, toast) {
-  try {
-    if (
-      typeof navigator !== "undefined" &&
-      navigator.share &&
-      navigator.canShare &&
-      typeof File !== "undefined"
-    ) {
-      const file = new File([blob], filename, { type: "image/png" });
-      let canShareFiles = false;
-      try {
-        canShareFiles = navigator.canShare({ files: [file] });
-      } catch (e) {
-        canShareFiles = false;
-      }
-
-      if (canShareFiles) {
-        await navigator.share({
-          title: "Mi lectura zodiacal",
-          text: "¡Mirá mi lectura zodiacal en Café Zodíaco!",
-          files: [file]
-        });
-        toast("success", "Tarjeta compartida");
-        return;
-      }
-    }
-  } catch (e) {
-    console.warn("Web Share falló, descargo:", e);
-  }
-
-  // Fallback universal: descargar
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.rel = "noopener";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  setTimeout(()=>URL.revokeObjectURL(url), 4000);
-  toast("success", "Tarjeta descargada");
 }
 
 function CartScreen({ cart, user, toast, goTo }) {
@@ -1238,7 +1286,7 @@ function App() {
       : (brand.name || "Café Zodíaco");
   }, [brand.name, profile?.zodiac_sign]);
 
-  /* REDIRECCIÓN AUTOMÁTICA: rider va a su panel */
+  /* Redirección automática: rider va a su panel */
   useEffect(()=>{
     if (!profile) return;
     if (profile.role === "rider") {
@@ -1246,7 +1294,7 @@ function App() {
     }
   }, [profile]);
 
-  /* Mensaje zodiacal para la tarjeta compartible (fuera de MenuScreen) */
+  /* Mensaje zodiacal para la tarjeta compartible */
   const shareMessage = useMemo(
     ()=>zodiacMsg(profile?.zodiac_sign, cart.lines.map(l=>l.name)),
     [profile?.zodiac_sign, cart.lines]
@@ -1285,7 +1333,7 @@ function App() {
       <Bottom page={page} setPage={(p)=>{ setDetailId(null); setPage(p); }} cartCount={cart.count} />
       <Toast toasts={toasts} dismiss={dismiss} />
 
-      {/* Contenedor off-screen para generación de la tarjeta 9:16 */}
+      {/* Contenedor off-screen para la tarjeta 9:16 */}
       <ShareCard
         message={shareMessage}
         sign={profile?.zodiac_sign}
